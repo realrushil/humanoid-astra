@@ -1,0 +1,14 @@
+# experimentation notes (contain AWS account/instance/security-group ids)
+NOTES.md
+TASK.md
+
+# my AWS account plumbing (instance id baked in as default)
+setup_iam.sh
+
+# junk
+.DS_Store
+*.pid
+__pycache__/
+
+# experiment outputs (frames, videos, logs, results) — repo is methodology only
+runs/
