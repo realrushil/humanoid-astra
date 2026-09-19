@@ -1,0 +1,14 @@
+# Static sensor calibration assets
+
+`arena_g1_rev1_0_kinematics.urdf` describes the **installed Arena G1 rev1.0 simulator robot**, for encoder-based camera/link transforms. It is generated from fixed joint geometry in the robot USD, not estimated from runtime body poses or task geometry. Units are metres/radians. Its 53 links and 52 fixed/revolute joints include 43 actuated coordinates.
+
+This is a **kinematics-only description**: it has no masses, meshes or actuator dynamics. Zero effort/velocity values mean those actuator limits are unavailable here; they must never be interpreted as a control configuration. The robot's static joint angle limits are converted from USD degrees to radians. Physical G1 calibration is not established by this asset.
+
+Source USD: `g1_29dof_with_hand_rev_1_0.usd`, SHA256 `a7a2bab76981d19a1d76adecdfffec9b52afa34df9ba8e288ccedf410d3ce6bd`. The static joint export (original CAP archive: `runs/coupled-transfer-001/body-frame-01/static-joints.json`) and generator (original CAP archive: `temp/coupled-transfer/export_sensor_urdf.py`) preserve provenance. Qualification (original CAP archive: `runs/coupled-transfer-001/body-frame-02/report.md`) compares 188 encoder-only transforms with independently recorded link poses.
+
+The native controller's separately shipped URDF has different waist and upper-body offsets. Do not silently substitute it for this sensor model. Existing GR00T/HOMIE/arm controllers still use their original model; replacing their model requires separate controller qualification.
+
+`arena_g1_rev1_0_bounds.json` contains static link-local collision AABBs, in metres, for this same robot. No runtime pose, scene geometry or object property is retained. Extraction provenance (original CAP archive: `runs/coupled-transfer-001/table-boundary-self-probe-01/static-geometry-provenance.json`). `sensor_robot_geometry.py` positions rigid links from body encoders and encloses unmeasured finger chains with rotation-independent reach spheres. Its 5 mm exclusion padding is an uncalibrated development margin, and can exclude real scene pixels near the hands. It does not supply finger feedback to GR00T.
+
+
+`arena_g1_arm_mass.json` adds **separate static gravity calibration** from the same USD hash: thirty arm-descendant links with authored mass (kg) and link-local COM (m). It changes no inertial values in the kinematics-only URDF. Links with no arm ancestor make no arm generalized-gravity contribution; four such tiny sensor links have unspecified COM and are excluded explicitly. `arm_gravity.py` combines this calibration with measured encoder positions, estimated up and configured native servo stiffness; it contains no object properties. Extraction, derivative checks and matched/fresh qualification (original CAP archive: `runs/coupled-transfer-001/arm-tracking-01/report.md`). This is simulator calibration, not a measured physical G1 model.

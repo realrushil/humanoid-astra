@@ -1,0 +1,13 @@
+{
+  "backend": "arena",
+  "task_kind": "table_transfer",
+  "fixture": "two_empty_equal_height_tables_v1",
+  "seed": 42,
+  "gr00t_seed": 0,
+  "box_offset_y_m": 0.0,
+  "destination_offset_xy_m": [0.0, 0.0],
+  "model_gpu": 0,
+  "deadline": 180.0,
+  "wall_timeout_s": 2400.0,
+  "worker_timeout_s": 1800.0
+}

@@ -1,0 +1,51 @@
+{
+  "backend": "arena",
+  "task_kind": "table_transfer",
+  "fixture": "box_transfer_v1",
+  "seed": 42,
+  "gr00t_seed": 0,
+  "model_gpu": 0,
+  "deadline": 180.0,
+  "wall_timeout_s": 2400.0,
+  "worker_timeout_s": 1800.0,
+  "scene": {
+    "tables": {
+      "source": {
+        "center_xy": [
+          0.75,
+          0.18
+        ],
+        "size_xy": [
+          0.6,
+          0.8
+        ],
+        "top_z": -0.03
+      },
+      "destination": {
+        "center_xy": [
+          -0.245,
+          -1.6272
+        ],
+        "size_xy": [
+          1.1,
+          0.8
+        ],
+        "top_z": -0.03
+      }
+    },
+    "box": {
+      "size_m": [
+        0.2,
+        0.2,
+        0.2
+      ],
+      "mass_kg": 0.5,
+      "center_xy": [
+        0.6,
+        0.18
+      ],
+      "xy_jitter_m": 0.01,
+      "yaw_offset_rad": 0.0
+    }
+  }
+}

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "g1cap"
+version = "0.1.0"
+description = "Persistent coding-agent workflows and bounded robot tools for simulated Unitree G1"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+analysis = ["numpy", "scipy", "Pillow", "imageio"]
+
+[project.scripts]
+g1cap = "g1cap.__main__:main"
+
+[tool.setuptools]
+packages = ["g1cap", "g1cap.toolkit"]
+
+[tool.setuptools.package-data]
+g1cap = ["tool_docs/*.md", "assets/*.urdf", "assets/*.json"]

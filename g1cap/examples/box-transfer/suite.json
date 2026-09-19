@@ -1,0 +1,72 @@
+{
+  "version": "box-transfer-v1",
+  "cases": [
+    {
+      "recipe": "01-nominal.json",
+      "label": "Nominal transfer",
+      "split": "development"
+    },
+    {
+      "recipe": "02-box-offset.json",
+      "label": "Box shifted sideways by 6 cm",
+      "split": "validation"
+    },
+    {
+      "recipe": "03-box-rotated.json",
+      "label": "Box rotated 25 degrees",
+      "split": "validation"
+    },
+    {
+      "recipe": "04-opposite-side.json",
+      "label": "Destination on the opposite side",
+      "split": "validation"
+    },
+    {
+      "recipe": "05-longer-carry.json",
+      "label": "Destination 1 m farther away",
+      "split": "validation"
+    },
+    {
+      "recipe": "06-higher-table.json",
+      "label": "Destination 5 cm higher",
+      "split": "validation"
+    },
+    {
+      "recipe": "07-smaller-table.json",
+      "label": "Destination tabletop 70 x 60 cm",
+      "split": "validation"
+    },
+    {
+      "recipe": "08-rectangular-box.json",
+      "label": "Rectangular box 20 x 24 x 16 cm",
+      "split": "validation"
+    },
+    {
+      "recipe": "09-heavier-box.json",
+      "label": "Cube mass 0.5 kg",
+      "split": "validation"
+    },
+    {
+      "recipe": "10-combined.json",
+      "label": "Larger heavy parcel; shifted higher smaller desk",
+      "split": "validation"
+    }
+  ],
+  "repeats": [
+    {
+      "seed": 42,
+      "gr00t_seed": 0
+    },
+    {
+      "seed": 43,
+      "gr00t_seed": 1
+    },
+    {
+      "seed": 44,
+      "gr00t_seed": 2
+    }
+  ],
+  "development_gate": "three consecutive full transfers; all physics faults absent",
+  "sweep_protocol": "frozen tools and prompt; one episode per case first; at most three generations per episode",
+  "observation_track": "simulator_state_plus_images"
+}

@@ -1,0 +1,1834 @@
+{
+  "snapshot_date": "2026-09-18",
+  "source_root": "CAP",
+  "note": "Python implementation is unchanged. New handoff documentation/metadata is not original source. Sensor recipe model_gpu changed from 1 to 0.",
+  "files": [
+    {
+      "path": "g1cap/README.md",
+      "source": "g1cap/README.md",
+      "source_sha256": "789353f1f5119c28f4ff856b581c5bdf1d9e17b5c6a2a9ee351bd8c7593abbc0",
+      "snapshot_sha256": "7f41557373f94ff70e8565858b9c166cd5e3877111c7eadb8a51b51396a091bb",
+      "unchanged": false
+    },
+    {
+      "path": "g1cap/__init__.py",
+      "source": "g1cap/__init__.py",
+      "source_sha256": "5c5d46d19bd27837119d00646e43ff2a98fbffdb342eac56d4566e30e4a244e4",
+      "snapshot_sha256": "5c5d46d19bd27837119d00646e43ff2a98fbffdb342eac56d4566e30e4a244e4",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/__main__.py",
+      "source": "g1cap/__main__.py",
+      "source_sha256": "15d2e88c19ca100c5a2e0b829c0292cd5894e377bc59d677f1d1bb6cb61204d0",
+      "snapshot_sha256": "15d2e88c19ca100c5a2e0b829c0292cd5894e377bc59d677f1d1bb6cb61204d0",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/agent.py",
+      "source": "g1cap/agent.py",
+      "source_sha256": "4d5bba7f5d27614de7972c4e110b55f574e47fb181bc4aef9a102692e0c6a930",
+      "snapshot_sha256": "4d5bba7f5d27614de7972c4e110b55f574e47fb181bc4aef9a102692e0c6a930",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_alignment.py",
+      "source": "g1cap/arena_alignment.py",
+      "source_sha256": "ed1304b2d6b6c21fed84cd0c67ce54c312703436a6d020b25a9c5460ec216f0e",
+      "snapshot_sha256": "ed1304b2d6b6c21fed84cd0c67ce54c312703436a6d020b25a9c5460ec216f0e",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_control.py",
+      "source": "g1cap/arena_control.py",
+      "source_sha256": "f562a1071706561177eb7b3731ddf244acc4c0e7f43014e380ea65f559f13634",
+      "snapshot_sha256": "f562a1071706561177eb7b3731ddf244acc4c0e7f43014e380ea65f559f13634",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_grasp.py",
+      "source": "g1cap/arena_grasp.py",
+      "source_sha256": "911390d1a60f82cb9bc732b6532f083a81ea0d35020231eb55516174b5421a52",
+      "snapshot_sha256": "911390d1a60f82cb9bc732b6532f083a81ea0d35020231eb55516174b5421a52",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_launch.py",
+      "source": "g1cap/arena_launch.py",
+      "source_sha256": "abf0322c79b298b4e0dfaf8f85825f53366a12d65800998de866e65a3d042221",
+      "snapshot_sha256": "abf0322c79b298b4e0dfaf8f85825f53366a12d65800998de866e65a3d042221",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_lift.py",
+      "source": "g1cap/arena_lift.py",
+      "source_sha256": "667ba459b180c89eca49e13e3d960e19f334b6304e072a40af96736686bb13a1",
+      "snapshot_sha256": "667ba459b180c89eca49e13e3d960e19f334b6304e072a40af96736686bb13a1",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_motion.py",
+      "source": "g1cap/arena_motion.py",
+      "source_sha256": "02b571435bcb956688f543304c6365266185989cefa6ebced94e959e256d1f66",
+      "snapshot_sha256": "02b571435bcb956688f543304c6365266185989cefa6ebced94e959e256d1f66",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_observation.py",
+      "source": "g1cap/arena_observation.py",
+      "source_sha256": "4dd77d13aa84966a3927210eec3b722b31adc8c8b5c9c05062695a66e8a3c2a8",
+      "snapshot_sha256": "4dd77d13aa84966a3927210eec3b722b31adc8c8b5c9c05062695a66e8a3c2a8",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_perception.py",
+      "source": "g1cap/arena_perception.py",
+      "source_sha256": "0c4ecef733b2ac13ad579fb811b46ed6afc485e84757b59e38db4a3c94469dbd",
+      "snapshot_sha256": "0c4ecef733b2ac13ad579fb811b46ed6afc485e84757b59e38db4a3c94469dbd",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_placement.py",
+      "source": "g1cap/arena_placement.py",
+      "source_sha256": "7f4ee359ac0cf6703d6f8bee87d8fc52750a8aa1951d1488469707f86c5db91a",
+      "snapshot_sha256": "7f4ee359ac0cf6703d6f8bee87d8fc52750a8aa1951d1488469707f86c5db91a",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_placement_geometry.py",
+      "source": "g1cap/arena_placement_geometry.py",
+      "source_sha256": "85497bd231c099912d3d2f3cd3e0b993d1bee61bb584930e2ee6daff1ae92bbd",
+      "snapshot_sha256": "85497bd231c099912d3d2f3cd3e0b993d1bee61bb584930e2ee6daff1ae92bbd",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_policy_server.py",
+      "source": "g1cap/arena_policy_server.py",
+      "source_sha256": "69597ed6e575d2f2877441df6eca8acb9e8d7d0b5467165acc1e0b707fbe48ab",
+      "snapshot_sha256": "69597ed6e575d2f2877441df6eca8acb9e8d7d0b5467165acc1e0b707fbe48ab",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_public.py",
+      "source": "g1cap/arena_public.py",
+      "source_sha256": "ab530bbc60e5b797d9801006a23e1c5954fffce9fadb0cdc5ee2991ae3c8b34e",
+      "snapshot_sha256": "ab530bbc60e5b797d9801006a23e1c5954fffce9fadb0cdc5ee2991ae3c8b34e",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_retraction.py",
+      "source": "g1cap/arena_retraction.py",
+      "source_sha256": "d89902759b5b18f26559da2517e17391bb9b0bffd4399dc25cd0542e8dfd644b",
+      "snapshot_sha256": "d89902759b5b18f26559da2517e17391bb9b0bffd4399dc25cd0542e8dfd644b",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_retreat.py",
+      "source": "g1cap/arena_retreat.py",
+      "source_sha256": "17ae316483d5a955931f77da8f4dcd2974e73a3d621b74b7fdfb2fb907be617f",
+      "snapshot_sha256": "17ae316483d5a955931f77da8f4dcd2974e73a3d621b74b7fdfb2fb907be617f",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_scene.py",
+      "source": "g1cap/arena_scene.py",
+      "source_sha256": "0e4bcd27b85645dc0c719b14384e416ab1566a210c2ca02ae7c891dbdea06309",
+      "snapshot_sha256": "0e4bcd27b85645dc0c719b14384e416ab1566a210c2ca02ae7c891dbdea06309",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_sensor_action.py",
+      "source": "g1cap/arena_sensor_action.py",
+      "source_sha256": "6ae53a8eadcede7609f97a603f9c7c91b829f666fba9baad58f9b0e22c537632",
+      "snapshot_sha256": "6ae53a8eadcede7609f97a603f9c7c91b829f666fba9baad58f9b0e22c537632",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_sensor_recording.py",
+      "source": "g1cap/arena_sensor_recording.py",
+      "source_sha256": "838ab19fdd6c343112bf952ed1c5410da67718af3ead0ae6080d244918017c42",
+      "snapshot_sha256": "838ab19fdd6c343112bf952ed1c5410da67718af3ead0ae6080d244918017c42",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_sensors.py",
+      "source": "g1cap/arena_sensors.py",
+      "source_sha256": "42b7b89e386bb0b52043017700cdf417e7217e01ba67659a47c62c37fcdce87c",
+      "snapshot_sha256": "42b7b89e386bb0b52043017700cdf417e7217e01ba67659a47c62c37fcdce87c",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_session.py",
+      "source": "g1cap/arena_session.py",
+      "source_sha256": "3467fc26fef2e3375ad79c68f78fa63ceb56898e8c3db0a76a2124f56de22097",
+      "snapshot_sha256": "3467fc26fef2e3375ad79c68f78fa63ceb56898e8c3db0a76a2124f56de22097",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_session_runtime.py",
+      "source": "g1cap/arena_session_runtime.py",
+      "source_sha256": "72e8860f45ef1cd36db1657ae2df35a3833792957084f4c6ca6070bceb449ab8",
+      "snapshot_sha256": "72e8860f45ef1cd36db1657ae2df35a3833792957084f4c6ca6070bceb449ab8",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_surfaces.py",
+      "source": "g1cap/arena_surfaces.py",
+      "source_sha256": "4e1a0a69ec433e2e08b688f2028cc7f6106f89b3e58e9e130edc4d3ef9b263dc",
+      "snapshot_sha256": "4e1a0a69ec433e2e08b688f2028cc7f6106f89b3e58e9e130edc4d3ef9b263dc",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_task.py",
+      "source": "g1cap/arena_task.py",
+      "source_sha256": "5d5c1efba5b39c42972f3449a6c6ee03cdb7e0ac44228c373391d6c356dfaf25",
+      "snapshot_sha256": "5d5c1efba5b39c42972f3449a6c6ee03cdb7e0ac44228c373391d6c356dfaf25",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_video.py",
+      "source": "g1cap/arena_video.py",
+      "source_sha256": "19c887b7406e22a531dfd543020e6de4716a32b96b072f5511a3a80e9da926e8",
+      "snapshot_sha256": "19c887b7406e22a531dfd543020e6de4716a32b96b072f5511a3a80e9da926e8",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arena_world.py",
+      "source": "g1cap/arena_world.py",
+      "source_sha256": "c14b23ed06e55a8b2e0dc141f9655b146a27e32a7454768a80669c0d9bd2ad7d",
+      "snapshot_sha256": "c14b23ed06e55a8b2e0dc141f9655b146a27e32a7454768a80669c0d9bd2ad7d",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/arm_gravity.py",
+      "source": "g1cap/arm_gravity.py",
+      "source_sha256": "5f7f0608aac2ccf3e3b12cdeea72e254fc627becdb60da06d8770443a7233a10",
+      "snapshot_sha256": "5f7f0608aac2ccf3e3b12cdeea72e254fc627becdb60da06d8770443a7233a10",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/assets/README.md",
+      "source": "g1cap/assets/README.md",
+      "source_sha256": "df2f0a1c2d75e83f4a4e362db285c349f8a9012f6bd1d0bb490f7c46aa409e21",
+      "snapshot_sha256": "a336e9015e349381b481f1e7f5c59cdd216beda7dfd4ca978383a6ef328e5d0a",
+      "unchanged": false
+    },
+    {
+      "path": "g1cap/assets/arena_g1_arm_mass.json",
+      "source": "g1cap/assets/arena_g1_arm_mass.json",
+      "source_sha256": "46ace5cadbf837feaf55b17833e4676ec45f6b8d5f63a61dc012287e55242c92",
+      "snapshot_sha256": "46ace5cadbf837feaf55b17833e4676ec45f6b8d5f63a61dc012287e55242c92",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/assets/arena_g1_rev1_0_bounds.json",
+      "source": "g1cap/assets/arena_g1_rev1_0_bounds.json",
+      "source_sha256": "e6123b2c5a51617bc925b0c33ec9de430d8807b3a1870fe360360c61e9908fa7",
+      "snapshot_sha256": "e6123b2c5a51617bc925b0c33ec9de430d8807b3a1870fe360360c61e9908fa7",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/assets/arena_g1_rev1_0_kinematics.urdf",
+      "source": "g1cap/assets/arena_g1_rev1_0_kinematics.urdf",
+      "source_sha256": "7d3231becb83de60fc52e13ceea7ce59b3cd23df3657f745eda638c2365a6785",
+      "snapshot_sha256": "7d3231becb83de60fc52e13ceea7ce59b3cd23df3657f745eda638c2365a6785",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/carry_frame.py",
+      "source": "g1cap/carry_frame.py",
+      "source_sha256": "66a1f13689b55d40668a54eb8abb5eddfd8a8e5b3788a402ba211a9bf77e6021",
+      "snapshot_sha256": "66a1f13689b55d40668a54eb8abb5eddfd8a8e5b3788a402ba211a9bf77e6021",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/codex_agent.py",
+      "source": "g1cap/codex_agent.py",
+      "source_sha256": "f0ce7622a35606d0279864a72ea2a65a772ba388db9a42640f84709cb567014f",
+      "snapshot_sha256": "f0ce7622a35606d0279864a72ea2a65a772ba388db9a42640f84709cb567014f",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/destination_surface.py",
+      "source": "g1cap/destination_surface.py",
+      "source_sha256": "52de7faaf0df5715d3f7478ee879ea1fc95bab65ba6ea9712310d1a8b9211d7e",
+      "snapshot_sha256": "52de7faaf0df5715d3f7478ee879ea1fc95bab65ba6ea9712310d1a8b9211d7e",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/execution.py",
+      "source": "g1cap/execution.py",
+      "source_sha256": "6e2a2cacf80ba1f5175183cb39645c4f65a9ac6e29283aedac2cca87d008558f",
+      "snapshot_sha256": "6e2a2cacf80ba1f5175183cb39645c4f65a9ac6e29283aedac2cca87d008558f",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/hand_sensors.py",
+      "source": "g1cap/hand_sensors.py",
+      "source_sha256": "72741c84d2555529479702937e342e6c47d10c82ae091a98013f7bfce36f35b3",
+      "snapshot_sha256": "72741c84d2555529479702937e342e6c47d10c82ae091a98013f7bfce36f35b3",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/interactive.py",
+      "source": "g1cap/interactive.py",
+      "source_sha256": "9acbc562e667e5d2e4ef4174fb2c00c46f2067a2cc907e2efb6b414db05fac88",
+      "snapshot_sha256": "9acbc562e667e5d2e4ef4174fb2c00c46f2067a2cc907e2efb6b414db05fac88",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/level_source_plane.py",
+      "source": "g1cap/level_source_plane.py",
+      "source_sha256": "5308d45c1fc4f7d2467529ba571ce7259f846fb8f71ee20473aec28a462a081b",
+      "snapshot_sha256": "5308d45c1fc4f7d2467529ba571ce7259f846fb8f71ee20473aec28a462a081b",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/loaded_stop.py",
+      "source": "g1cap/loaded_stop.py",
+      "source_sha256": "d23f50ed2442421ca543e334d03f9fd757a2d6cb61c0403c9a350bb498aa25a3",
+      "snapshot_sha256": "d23f50ed2442421ca543e334d03f9fd757a2d6cb61c0403c9a350bb498aa25a3",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/measured_turn.py",
+      "source": "g1cap/measured_turn.py",
+      "source_sha256": "0a73960aa25103a9e3565febfe058ff505cb1e95ecd6498f4ac2027ea7e26f4b",
+      "snapshot_sha256": "0a73960aa25103a9e3565febfe058ff505cb1e95ecd6498f4ac2027ea7e26f4b",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/mobility_task.py",
+      "source": "g1cap/mobility_task.py",
+      "source_sha256": "6dd1a89a9e3fdbec5beca1907eb9c2ba0e3e3b137363ad4668e9609629f26e9d",
+      "snapshot_sha256": "6dd1a89a9e3fdbec5beca1907eb9c2ba0e3e3b137363ad4668e9609629f26e9d",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/models.py",
+      "source": "g1cap/models.py",
+      "source_sha256": "99d9c17ef630c4e4d18ad501c92d1e90a25c86e008da935eaca6ad141fe543cd",
+      "snapshot_sha256": "99d9c17ef630c4e4d18ad501c92d1e90a25c86e008da935eaca6ad141fe543cd",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/observations.py",
+      "source": "g1cap/observations.py",
+      "source_sha256": "1005cacd71c301bd282d87f064cb23b672575cf3af73da17414cb3853dd9d329",
+      "snapshot_sha256": "1005cacd71c301bd282d87f064cb23b672575cf3af73da17414cb3853dd9d329",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/observed_approach.py",
+      "source": "g1cap/observed_approach.py",
+      "source_sha256": "8f17cf0107dc9d0aa307930863e1e0b9f98cb7e30f568d53c2dc0572978e383f",
+      "snapshot_sha256": "8f17cf0107dc9d0aa307930863e1e0b9f98cb7e30f568d53c2dc0572978e383f",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/observed_hand.py",
+      "source": "g1cap/observed_hand.py",
+      "source_sha256": "69de9bcb7a9713c244b88a3758b8184e18224db011f9369ff6d8256a26d5ac78",
+      "snapshot_sha256": "69de9bcb7a9713c244b88a3758b8184e18224db011f9369ff6d8256a26d5ac78",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/playback.py",
+      "source": "g1cap/playback.py",
+      "source_sha256": "d097556ec195ddae56627447c1ddfb0e1c73001b0c9e247fde579cf0bffd9472",
+      "snapshot_sha256": "d097556ec195ddae56627447c1ddfb0e1c73001b0c9e247fde579cf0bffd9472",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/remembered_source_plane.py",
+      "source": "g1cap/remembered_source_plane.py",
+      "source_sha256": "12475913a7953a7fb86da08e6da190413bf68e8e248ace0feb1e1d32491934c3",
+      "snapshot_sha256": "12475913a7953a7fb86da08e6da190413bf68e8e248ace0feb1e1d32491934c3",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/remote_sonic.py",
+      "source": "g1cap/remote_sonic.py",
+      "source_sha256": "47a04144565ad36a877e2d791b768a00d56a08f2c5c1dd61d6b99c1ae34b0115",
+      "snapshot_sha256": "47a04144565ad36a877e2d791b768a00d56a08f2c5c1dd61d6b99c1ae34b0115",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/retreat_stop.py",
+      "source": "g1cap/retreat_stop.py",
+      "source_sha256": "de03c264a9ef541e20d31fe386405e56de59326195cfd3705383dd84c239fced",
+      "snapshot_sha256": "de03c264a9ef541e20d31fe386405e56de59326195cfd3705383dd84c239fced",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/rgbd_box_geometry.py",
+      "source": "g1cap/rgbd_box_geometry.py",
+      "source_sha256": "ff02b8d9692b208352558e87e8f4773abb4708298c91560ed1f1d94fc334e867",
+      "snapshot_sha256": "ff02b8d9692b208352558e87e8f4773abb4708298c91560ed1f1d94fc334e867",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/rgbd_box_tracking.py",
+      "source": "g1cap/rgbd_box_tracking.py",
+      "source_sha256": "8f1f32d1735baa1a9b3d0cf3e640bc4547613fb4154856a07c64028a609bd106",
+      "snapshot_sha256": "8f1f32d1735baa1a9b3d0cf3e640bc4547613fb4154856a07c64028a609bd106",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/rgbd_geometry.py",
+      "source": "g1cap/rgbd_geometry.py",
+      "source_sha256": "35b27d5143a7c072e52138568cfa5f8d58aca2eb6319aee0b7bd3eff0097ea7c",
+      "snapshot_sha256": "35b27d5143a7c072e52138568cfa5f8d58aca2eb6319aee0b7bd3eff0097ea7c",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/rgbd_table.py",
+      "source": "g1cap/rgbd_table.py",
+      "source_sha256": "2322593b884bbbb84060cab029571769373f7b1442a2caa279c12c9f780a31e8",
+      "snapshot_sha256": "2322593b884bbbb84060cab029571769373f7b1442a2caa279c12c9f780a31e8",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/robot.py",
+      "source": "g1cap/robot.py",
+      "source_sha256": "42135115f7554da221d168bdc570991b1c8df060b9bcd162f89ff3f50a5a16da",
+      "snapshot_sha256": "42135115f7554da221d168bdc570991b1c8df060b9bcd162f89ff3f50a5a16da",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/runner.py",
+      "source": "g1cap/runner.py",
+      "source_sha256": "99c4ca172df7230da89911c143289a9ecf441cb38416fa76e3715b173d6d1a9a",
+      "snapshot_sha256": "99c4ca172df7230da89911c143289a9ecf441cb38416fa76e3715b173d6d1a9a",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/scene.py",
+      "source": "g1cap/scene.py",
+      "source_sha256": "f3ae666d4648e8396ddd2b138e623eb6125d05085ca6f1a04af030b307c91e3b",
+      "snapshot_sha256": "f3ae666d4648e8396ddd2b138e623eb6125d05085ca6f1a04af030b307c91e3b",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/scene_motion.py",
+      "source": "g1cap/scene_motion.py",
+      "source_sha256": "04da20595f474c4ab91d2e058c30f6e9c6885f6d3adaa1773ee53f8a96ccdc48",
+      "snapshot_sha256": "04da20595f474c4ab91d2e058c30f6e9c6885f6d3adaa1773ee53f8a96ccdc48",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/scene_wrist_hold.py",
+      "source": "g1cap/scene_wrist_hold.py",
+      "source_sha256": "a100fe7e3e8341f99bbfa5bab3a5952a2ffa1613312c750bbf21253ebbdf26ce",
+      "snapshot_sha256": "a100fe7e3e8341f99bbfa5bab3a5952a2ffa1613312c750bbf21253ebbdf26ce",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/sensor_attitude.py",
+      "source": "g1cap/sensor_attitude.py",
+      "source_sha256": "94e2f56eaa6fc63dceb48e988268d417b6b4d4390977605d0a3a00afea901738",
+      "snapshot_sha256": "94e2f56eaa6fc63dceb48e988268d417b6b4d4390977605d0a3a00afea901738",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/sensor_destination_approach.py",
+      "source": "g1cap/sensor_destination_approach.py",
+      "source_sha256": "8242cda99502d5b8be13e6d7079e19e0f6a1284749cc955889ce5b744fbca5f3",
+      "snapshot_sha256": "8242cda99502d5b8be13e6d7079e19e0f6a1284749cc955889ce5b744fbca5f3",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/sensor_guard.py",
+      "source": "g1cap/sensor_guard.py",
+      "source_sha256": "96de60a58fd1950adc4d08b260b13169e658796393ce3b94903c1ccf5a62bbaa",
+      "snapshot_sha256": "96de60a58fd1950adc4d08b260b13169e658796393ce3b94903c1ccf5a62bbaa",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/sensor_kinematics.py",
+      "source": "g1cap/sensor_kinematics.py",
+      "source_sha256": "e71b1acf2c9f820f1d948c26d74b6a325f7b5d516a6f31acaaa2785f73aa4cd9",
+      "snapshot_sha256": "e71b1acf2c9f820f1d948c26d74b6a325f7b5d516a6f31acaaa2785f73aa4cd9",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/sensor_lift.py",
+      "source": "g1cap/sensor_lift.py",
+      "source_sha256": "98bf43d8496fd8bfa6dec3ae79ebc48b322cdf938aeae66801d3557eded964e2",
+      "snapshot_sha256": "98bf43d8496fd8bfa6dec3ae79ebc48b322cdf938aeae66801d3557eded964e2",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/sensor_retreat.py",
+      "source": "g1cap/sensor_retreat.py",
+      "source_sha256": "2860a8a134f0d6eb97e58d80b31eb7a7668882518ccaaad9bbdcd4acd676c8a0",
+      "snapshot_sha256": "2860a8a134f0d6eb97e58d80b31eb7a7668882518ccaaad9bbdcd4acd676c8a0",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/sensor_robot_geometry.py",
+      "source": "g1cap/sensor_robot_geometry.py",
+      "source_sha256": "513c1dc2c0d8e5ef8b947b3611e9dc9f2c124b16b152e6d152b74ab76025f66c",
+      "snapshot_sha256": "513c1dc2c0d8e5ef8b947b3611e9dc9f2c124b16b152e6d152b74ab76025f66c",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/sensor_turn.py",
+      "source": "g1cap/sensor_turn.py",
+      "source_sha256": "a00abbd6062003fede770dc6dc1548598d7a4604377c3125e4df78869cc19544",
+      "snapshot_sha256": "a00abbd6062003fede770dc6dc1548598d7a4604377c3125e4df78869cc19544",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/session.py",
+      "source": "g1cap/session.py",
+      "source_sha256": "48b003978f3e0d9021f1b09650e6510c88123a39ff734f1210d838b5cee621ab",
+      "snapshot_sha256": "48b003978f3e0d9021f1b09650e6510c88123a39ff734f1210d838b5cee621ab",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/session_runtime.py",
+      "source": "g1cap/session_runtime.py",
+      "source_sha256": "c7a2744dbf8547ce7f3be86dca3067e525ba2cc3dd95b03f351c5e8a033e1271",
+      "snapshot_sha256": "c7a2744dbf8547ce7f3be86dca3067e525ba2cc3dd95b03f351c5e8a033e1271",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/session_task.py",
+      "source": "g1cap/session_task.py",
+      "source_sha256": "4bb5df0147faa75d0cda24eaa4a2fc5fa0cb3a82a9711e1fae17e668424f2cdc",
+      "snapshot_sha256": "4bb5df0147faa75d0cda24eaa4a2fc5fa0cb3a82a9711e1fae17e668424f2cdc",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/session_tools.py",
+      "source": "g1cap/session_tools.py",
+      "source_sha256": "023f6c9440d6eeacef47f263c2cc398097a135de4abb813459305719ea5adee1",
+      "snapshot_sha256": "023f6c9440d6eeacef47f263c2cc398097a135de4abb813459305719ea5adee1",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/session_video.py",
+      "source": "g1cap/session_video.py",
+      "source_sha256": "401076844708c4aaab3984a3232ea7e40e3eb5e57ee5e2c344f86752d33a81d3",
+      "snapshot_sha256": "401076844708c4aaab3984a3232ea7e40e3eb5e57ee5e2c344f86752d33a81d3",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/sim_state.py",
+      "source": "g1cap/sim_state.py",
+      "source_sha256": "7e677cd484f42bcbfca0b7a5ecd7c91804ce3dd3044286bb23b7468dfe70979c",
+      "snapshot_sha256": "7e677cd484f42bcbfca0b7a5ecd7c91804ce3dd3044286bb23b7468dfe70979c",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/sonic.py",
+      "source": "g1cap/sonic.py",
+      "source_sha256": "890c18bdba2c75711e8a67cd0031a01f500bea016a386effc33c28699f4268ff",
+      "snapshot_sha256": "890c18bdba2c75711e8a67cd0031a01f500bea016a386effc33c28699f4268ff",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/sonic_backend.py",
+      "source": "g1cap/sonic_backend.py",
+      "source_sha256": "b3b34322424697115bf6308a50cfc52ba7fbd01170646f80c9b19e28c847150d",
+      "snapshot_sha256": "b3b34322424697115bf6308a50cfc52ba7fbd01170646f80c9b19e28c847150d",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/sonic_runtime.py",
+      "source": "g1cap/sonic_runtime.py",
+      "source_sha256": "4bb668085ee6e73894c5d6906af3e1f5e37f1ebd01d1d8541abd23349d587996",
+      "snapshot_sha256": "4bb668085ee6e73894c5d6906af3e1f5e37f1ebd01d1d8541abd23349d587996",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/sonic_sim.py",
+      "source": "g1cap/sonic_sim.py",
+      "source_sha256": "1fb0ddb23a8fbb3d0eae07c0b595eb19163a4a77b342ed02001eaf08a12055af",
+      "snapshot_sha256": "1fb0ddb23a8fbb3d0eae07c0b595eb19163a4a77b342ed02001eaf08a12055af",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/source_plane.py",
+      "source": "g1cap/source_plane.py",
+      "source_sha256": "a8c7969d5f7021740e550b4654e6ad855c0ef3c70247f45f9fdc35b4da267c09",
+      "snapshot_sha256": "a8c7969d5f7021740e550b4654e6ad855c0ef3c70247f45f9fdc35b4da267c09",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/stationary_task.py",
+      "source": "g1cap/stationary_task.py",
+      "source_sha256": "6d6b30102edd805656958d2d83b0a203c3502a88d9b6716d0f8cac589bbfaaa2",
+      "snapshot_sha256": "6d6b30102edd805656958d2d83b0a203c3502a88d9b6716d0f8cac589bbfaaa2",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tasks.py",
+      "source": "g1cap/tasks.py",
+      "source_sha256": "ba7979437015e72ae2f4521648eb2cb79ac90d66681a6dd92a6bc37f8d922929",
+      "snapshot_sha256": "ba7979437015e72ae2f4521648eb2cb79ac90d66681a6dd92a6bc37f8d922929",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/README.md",
+      "source": "g1cap/tool_docs/README.md",
+      "source_sha256": "b613f07314c72b4d6a18f8ac4dba5f8dbc7fd9cbbf0ddb343f09baf983caab9e",
+      "snapshot_sha256": "b613f07314c72b4d6a18f8ac4dba5f8dbc7fd9cbbf0ddb343f09baf983caab9e",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/arena_box.md",
+      "source": "g1cap/tool_docs/arena_box.md",
+      "source_sha256": "e34c7fdc946c14bfb09ecb960cc056f5c0eee8fe3de1cfa40da921ae28773ec3",
+      "snapshot_sha256": "e34c7fdc946c14bfb09ecb960cc056f5c0eee8fe3de1cfa40da921ae28773ec3",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/arena_sensor.md",
+      "source": "g1cap/tool_docs/arena_sensor.md",
+      "source_sha256": "4886adcb2e38ae17624cf842673e669567283a88980fde8efd4ae2b7b0afc012",
+      "snapshot_sha256": "4886adcb2e38ae17624cf842673e669567283a88980fde8efd4ae2b7b0afc012",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/check_hands.md",
+      "source": "g1cap/tool_docs/check_hands.md",
+      "source_sha256": "997c2193606cd2edff9809114a0c621c987210875c7c91916a625cc5d09e06cd",
+      "snapshot_sha256": "997c2193606cd2edff9809114a0c621c987210875c7c91916a625cc5d09e06cd",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/check_reach.md",
+      "source": "g1cap/tool_docs/check_reach.md",
+      "source_sha256": "34ee622c7299b411aea2178f1724e601855bcb9152e89678b1b6992366553765",
+      "snapshot_sha256": "34ee622c7299b411aea2178f1724e601855bcb9152e89678b1b6992366553765",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/choosing_tools.md",
+      "source": "g1cap/tool_docs/choosing_tools.md",
+      "source_sha256": "09c3affca507028ea0e07be9ac36ed996d17dc80d2191a30063d7ddc17b06d71",
+      "snapshot_sha256": "09c3affca507028ea0e07be9ac36ed996d17dc80d2191a30063d7ddc17b06d71",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/hold.md",
+      "source": "g1cap/tool_docs/hold.md",
+      "source_sha256": "0caf664c7777aa398544771b8ac1129936704f31d016f00d55744d3729f85404",
+      "snapshot_sha256": "0caf664c7777aa398544771b8ac1129936704f31d016f00d55744d3729f85404",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/move_base.md",
+      "source": "g1cap/tool_docs/move_base.md",
+      "source_sha256": "60c56bf18131e768c2c8d4c1dfe0b5d0028155530c246f8dcfb7296de67a2d18",
+      "snapshot_sha256": "60c56bf18131e768c2c8d4c1dfe0b5d0028155530c246f8dcfb7296de67a2d18",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/observe.md",
+      "source": "g1cap/tool_docs/observe.md",
+      "source_sha256": "d858289c0657040fdb874d9df0dd33ff6fb35f7aef5dc1a7636fddba57d0c730",
+      "snapshot_sha256": "d858289c0657040fdb874d9df0dd33ff6fb35f7aef5dc1a7636fddba57d0c730",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/observe_scene.md",
+      "source": "g1cap/tool_docs/observe_scene.md",
+      "source_sha256": "9dccb2a9744d10f75224425a9d8df320e0baa4515e7f0a08753e738ca4363e1e",
+      "snapshot_sha256": "9dccb2a9744d10f75224425a9d8df320e0baa4515e7f0a08753e738ca4363e1e",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/programming.md",
+      "source": "g1cap/tool_docs/programming.md",
+      "source_sha256": "3c730875f4d3c24dd7d3b6a1e8cfaa1c9932753fd7ef909f7908f4c15a524195",
+      "snapshot_sha256": "3c730875f4d3c24dd7d3b6a1e8cfaa1c9932753fd7ef909f7908f4c15a524195",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/reach_hands.md",
+      "source": "g1cap/tool_docs/reach_hands.md",
+      "source_sha256": "1d9565da708f6abfc69fb3dff660c804afded7d761ccace3d47a35b886d47635",
+      "snapshot_sha256": "1d9565da708f6abfc69fb3dff660c804afded7d761ccace3d47a35b886d47635",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/reach_right.md",
+      "source": "g1cap/tool_docs/reach_right.md",
+      "source_sha256": "bd73ad1231675fd426b3a92b7b44f7c050fbad80accf33a4688ca55955e34191",
+      "snapshot_sha256": "bd73ad1231675fd426b3a92b7b44f7c050fbad80accf33a4688ca55955e34191",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/set_posture.md",
+      "source": "g1cap/tool_docs/set_posture.md",
+      "source_sha256": "02f3dfabc531bdab5fb03c003a286ea95f81719d359467a80c5a60f149601697",
+      "snapshot_sha256": "02f3dfabc531bdab5fb03c003a286ea95f81719d359467a80c5a60f149601697",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/sonic_motion.md",
+      "source": "g1cap/tool_docs/sonic_motion.md",
+      "source_sha256": "d92e77de5ad9a8121f11dab2950fba3d2e7d64af06fe234332717c3a9006cafe",
+      "snapshot_sha256": "d92e77de5ad9a8121f11dab2950fba3d2e7d64af06fe234332717c3a9006cafe",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/stop.md",
+      "source": "g1cap/tool_docs/stop.md",
+      "source_sha256": "40eaddf38662856f40e4df7262cf36466812e60ae6458998f89f52fd664b745e",
+      "snapshot_sha256": "40eaddf38662856f40e4df7262cf36466812e60ae6458998f89f52fd664b745e",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/turn_to.md",
+      "source": "g1cap/tool_docs/turn_to.md",
+      "source_sha256": "1c8e0637599176c023026b5097f9ca34465a0b02b3e8f0dd50adbf9428e1c24e",
+      "snapshot_sha256": "1c8e0637599176c023026b5097f9ca34465a0b02b3e8f0dd50adbf9428e1c24e",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/visual_observation.md",
+      "source": "g1cap/tool_docs/visual_observation.md",
+      "source_sha256": "048c25a8a072fe94ca3e0b357623ebca65e06a7dd08689045740a95be00d32f6",
+      "snapshot_sha256": "048c25a8a072fe94ca3e0b357623ebca65e06a7dd08689045740a95be00d32f6",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/tool_docs/walk_to.md",
+      "source": "g1cap/tool_docs/walk_to.md",
+      "source_sha256": "22283692ce6008ab74a54031a64e6276f0377661883ec1d563513debfb9e580b",
+      "snapshot_sha256": "22283692ce6008ab74a54031a64e6276f0377661883ec1d563513debfb9e580b",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/README.md",
+      "source": "g1cap/toolkit/README.md",
+      "source_sha256": "0e46a2d879e21fe8615780e003e88ff316d6354c816acc3920b8deb337499784",
+      "snapshot_sha256": "2fe6162e7a5de3c6116af0f37720fa67c0e4175fe2d0f5513589339d783ed2d1",
+      "unchanged": false
+    },
+    {
+      "path": "g1cap/toolkit/__init__.py",
+      "source": "g1cap/toolkit/__init__.py",
+      "source_sha256": "1e529951648442a5781b08b1e662c1d8c2c677ab27a459933d03340d6e4ef45e",
+      "snapshot_sha256": "1e529951648442a5781b08b1e662c1d8c2c677ab27a459933d03340d6e4ef45e",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/acquisition_wrists.py",
+      "source": "g1cap/toolkit/acquisition_wrists.py",
+      "source_sha256": "b61723f81e513f198bebe402a915fb490078f4a2e2364bf93c1720068caaa342",
+      "snapshot_sha256": "b61723f81e513f198bebe402a915fb490078f4a2e2364bf93c1720068caaa342",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/api.py",
+      "source": "g1cap/toolkit/api.py",
+      "source_sha256": "a9d6043c942692a0a267eee9206ff9b5ddc3f593b9170e76027f9fb0e2448a91",
+      "snapshot_sha256": "a9d6043c942692a0a267eee9206ff9b5ddc3f593b9170e76027f9fb0e2448a91",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/arena_approach.py",
+      "source": "g1cap/toolkit/arena_approach.py",
+      "source_sha256": "d51792cba52ba4a087f0a9706206b7baf6f64368b809c94ebd5335da8fa5b1d6",
+      "snapshot_sha256": "d51792cba52ba4a087f0a9706206b7baf6f64368b809c94ebd5335da8fa5b1d6",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/arena_geometry.py",
+      "source": "g1cap/toolkit/arena_geometry.py",
+      "source_sha256": "ba2563b9ac0585908351a0aea7da0cff4b5c1e6347377a9e902a7ecabb09d6ba",
+      "snapshot_sha256": "ba2563b9ac0585908351a0aea7da0cff4b5c1e6347377a9e902a7ecabb09d6ba",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/arm_planner.py",
+      "source": "g1cap/toolkit/arm_planner.py",
+      "source_sha256": "80e39708ad13cd3a783864ab1e03f97d820b140504ae83415d1f7ced61697ea2",
+      "snapshot_sha256": "80e39708ad13cd3a783864ab1e03f97d820b140504ae83415d1f7ced61697ea2",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/bimanual.py",
+      "source": "g1cap/toolkit/bimanual.py",
+      "source_sha256": "2e53fe8e4457bf751a08fd7c9c8705f2799dbedf22c1a4dc1754d47054637a77",
+      "snapshot_sha256": "2e53fe8e4457bf751a08fd7c9c8705f2799dbedf22c1a4dc1754d47054637a77",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/box_alignment.py",
+      "source": "g1cap/toolkit/box_alignment.py",
+      "source_sha256": "2ac82d494e0cacfb689a197479c420c64170375287e454e9405c7b39e66af520",
+      "snapshot_sha256": "2ac82d494e0cacfb689a197479c420c64170375287e454e9405c7b39e66af520",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/convex_clearance.py",
+      "source": "g1cap/toolkit/convex_clearance.py",
+      "source_sha256": "2be07b6b1d2c9979e5cb6e0317427985e58f5b3b4924425401138e62b996bf22",
+      "snapshot_sha256": "2be07b6b1d2c9979e5cb6e0317427985e58f5b3b4924425401138e62b996bf22",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/hand_clearance.py",
+      "source": "g1cap/toolkit/hand_clearance.py",
+      "source_sha256": "f77d8546a98b1f82514c6ecf993bb46d2ea7607c3f932ef992edb6e56e372bb7",
+      "snapshot_sha256": "f77d8546a98b1f82514c6ecf993bb46d2ea7607c3f932ef992edb6e56e372bb7",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/loaded_wrists.py",
+      "source": "g1cap/toolkit/loaded_wrists.py",
+      "source_sha256": "1662f48efe746df02d93ca13f7a40ccd5317db710eea035892493a9e63938033",
+      "snapshot_sha256": "1662f48efe746df02d93ca13f7a40ccd5317db710eea035892493a9e63938033",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/motion_sequence.py",
+      "source": "g1cap/toolkit/motion_sequence.py",
+      "source_sha256": "f9a6c5802824c4c2ac684f1f8de116be1fa05a0a0b146f67b443d5114286e178",
+      "snapshot_sha256": "f9a6c5802824c4c2ac684f1f8de116be1fa05a0a0b146f67b443d5114286e178",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/robot.py",
+      "source": "g1cap/toolkit/robot.py",
+      "source_sha256": "4c86fa9326151ea02df2de5224a9ffc5e5cf180a0bc4680c3d08f31c230028fd",
+      "snapshot_sha256": "4c86fa9326151ea02df2de5224a9ffc5e5cf180a0bc4680c3d08f31c230028fd",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/sonic.py",
+      "source": "g1cap/toolkit/sonic.py",
+      "source_sha256": "145b011e85e6f7a54c3179c0e679dde40bd398da1fc81a0830c3b98b82160019",
+      "snapshot_sha256": "145b011e85e6f7a54c3179c0e679dde40bd398da1fc81a0830c3b98b82160019",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/sonic_backend.py",
+      "source": "g1cap/toolkit/sonic_backend.py",
+      "source_sha256": "29cc07d0beff57de3e333795ace0b07c89e85bb2f34459e138d0241e9a06c619",
+      "snapshot_sha256": "29cc07d0beff57de3e333795ace0b07c89e85bb2f34459e138d0241e9a06c619",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/toolkit/stationary.py",
+      "source": "g1cap/toolkit/stationary.py",
+      "source_sha256": "560c834bde612b59793d517e368f4840e659595dae295c3b13249ce8506d2e02",
+      "snapshot_sha256": "560c834bde612b59793d517e368f4840e659595dae295c3b13249ce8506d2e02",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/trial.py",
+      "source": "g1cap/trial.py",
+      "source_sha256": "c1711d9aefa57458ec46050f675d67f308f3f40e519f0cbea3e29c8d2f262ff3",
+      "snapshot_sha256": "c1711d9aefa57458ec46050f675d67f308f3f40e519f0cbea3e29c8d2f262ff3",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/vertical_motion.py",
+      "source": "g1cap/vertical_motion.py",
+      "source_sha256": "5c126a35a5e10f98468a4b0194e8aef9ffac90a8c85f165bb36bff807560ae13",
+      "snapshot_sha256": "5c126a35a5e10f98468a4b0194e8aef9ffac90a8c85f165bb36bff807560ae13",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/visual_box_state.py",
+      "source": "g1cap/visual_box_state.py",
+      "source_sha256": "7310ed5bd8355921a98c8613a182e7e0cd21fb6a65b709357d5f1d5a02e41fe7",
+      "snapshot_sha256": "7310ed5bd8355921a98c8613a182e7e0cd21fb6a65b709357d5f1d5a02e41fe7",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/visual_grasp.py",
+      "source": "g1cap/visual_grasp.py",
+      "source_sha256": "2ce2cee8ec7047937a9c183704b55776a9741aa19d8f0c60a8d60466ec0c6705",
+      "snapshot_sha256": "2ce2cee8ec7047937a9c183704b55776a9741aa19d8f0c60a8d60466ec0c6705",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/visual_observation.py",
+      "source": "g1cap/visual_observation.py",
+      "source_sha256": "8ef34dda1f1307e5779e2058aa0857720289fbe2972c53293741322d4d853c3d",
+      "snapshot_sha256": "8ef34dda1f1307e5779e2058aa0857720289fbe2972c53293741322d4d853c3d",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/worker.py",
+      "source": "g1cap/worker.py",
+      "source_sha256": "7ad226df7f8922da9742d50fb0f65e9ab10bce4ed44947ccfeb948548f4c2e6b",
+      "snapshot_sha256": "7ad226df7f8922da9742d50fb0f65e9ab10bce4ed44947ccfeb948548f4c2e6b",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/workspace_agent.py",
+      "source": "g1cap/workspace_agent.py",
+      "source_sha256": "0d1bede5cde848772215fb4d35e1f8a0d08797e16614c80d7b726a736f4e4bd4",
+      "snapshot_sha256": "0d1bede5cde848772215fb4d35e1f8a0d08797e16614c80d7b726a736f4e4bd4",
+      "unchanged": true
+    },
+    {
+      "path": "g1cap/workstation_task.py",
+      "source": "g1cap/workstation_task.py",
+      "source_sha256": "5037ebee9182a74a3c6a14a6ba361a2501f63f68b8c9e3fb2614674daf79e3dc",
+      "snapshot_sha256": "5037ebee9182a74a3c6a14a6ba361a2501f63f68b8c9e3fb2614674daf79e3dc",
+      "unchanged": true
+    },
+    {
+      "path": "tests/fixtures/g1_arm_collision.json",
+      "source": "tests/fixtures/g1_arm_collision.json",
+      "source_sha256": "603cbc29e184ca2b0ac0445737e0109cb466c4a45cf03505522264283c6bd047",
+      "snapshot_sha256": "603cbc29e184ca2b0ac0445737e0109cb466c4a45cf03505522264283c6bd047",
+      "unchanged": true
+    },
+    {
+      "path": "tests/fixtures/placement-clearance-boundary.json",
+      "source": "tests/fixtures/placement-clearance-boundary.json",
+      "source_sha256": "91a8f88d5e763f9481d672c974d74be5be6a97139d83c1967467cdb444afcb2c",
+      "snapshot_sha256": "91a8f88d5e763f9481d672c974d74be5be6a97139d83c1967467cdb444afcb2c",
+      "unchanged": true
+    },
+    {
+      "path": "tests/fixtures/placement-clearance.json",
+      "source": "tests/fixtures/placement-clearance.json",
+      "source_sha256": "821d019b2546290634a96835e183eecee196b0e92049c38f8871ad9090659df9",
+      "snapshot_sha256": "821d019b2546290634a96835e183eecee196b0e92049c38f8871ad9090659df9",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_acquisition_wrists.py",
+      "source": "tests/test_acquisition_wrists.py",
+      "source_sha256": "217f43faeae6d6f2e31d86b6ce9b88052dd354ecaf75242d2c140d3e6335e877",
+      "snapshot_sha256": "217f43faeae6d6f2e31d86b6ce9b88052dd354ecaf75242d2c140d3e6335e877",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_control.py",
+      "source": "tests/test_arena_control.py",
+      "source_sha256": "a4e541f8208c4958e326ce71f3917b14efae5eebd165ba066cb2a3f84933072f",
+      "snapshot_sha256": "a4e541f8208c4958e326ce71f3917b14efae5eebd165ba066cb2a3f84933072f",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_grasp.py",
+      "source": "tests/test_arena_grasp.py",
+      "source_sha256": "6535100b545b4a55e75e9e2880d051ff82a4e4c1ce724a3b391053dbff4fc0b2",
+      "snapshot_sha256": "6535100b545b4a55e75e9e2880d051ff82a4e4c1ce724a3b391053dbff4fc0b2",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_lift.py",
+      "source": "tests/test_arena_lift.py",
+      "source_sha256": "f54dda77b9585b9855d9630439ab80a5a890cc957e9aa48dc13c51fd2580b1a8",
+      "snapshot_sha256": "f54dda77b9585b9855d9630439ab80a5a890cc957e9aa48dc13c51fd2580b1a8",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_limits.py",
+      "source": "tests/test_arena_limits.py",
+      "source_sha256": "cae2c70b94e447d96878fe8a619d956e9b44902492fc065d4e82c5811640f696",
+      "snapshot_sha256": "cae2c70b94e447d96878fe8a619d956e9b44902492fc065d4e82c5811640f696",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_motion.py",
+      "source": "tests/test_arena_motion.py",
+      "source_sha256": "23e74504e4d4da8308edb3e967a401180a353edefa61177b349345837256b92b",
+      "snapshot_sha256": "23e74504e4d4da8308edb3e967a401180a353edefa61177b349345837256b92b",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_placement.py",
+      "source": "tests/test_arena_placement.py",
+      "source_sha256": "b139d218fe0878babda5a15067a30afd93cbec01117cbcbd99c49279eefdea84",
+      "snapshot_sha256": "b139d218fe0878babda5a15067a30afd93cbec01117cbcbd99c49279eefdea84",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_public.py",
+      "source": "tests/test_arena_public.py",
+      "source_sha256": "00f4017cb7874bb1ef603b880a790f4b726703bf617dc1968e3ff902c0aa9029",
+      "snapshot_sha256": "00f4017cb7874bb1ef603b880a790f4b726703bf617dc1968e3ff902c0aa9029",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_retreat.py",
+      "source": "tests/test_arena_retreat.py",
+      "source_sha256": "76d008d76276b7760a06844723a9bfb9b1963275898a7c46fa17fa31e07bf0c2",
+      "snapshot_sha256": "76d008d76276b7760a06844723a9bfb9b1963275898a7c46fa17fa31e07bf0c2",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_scene.py",
+      "source": "tests/test_arena_scene.py",
+      "source_sha256": "e8689c035fd7ef1b7c960b05fedda6b1f963176eb2e9af37a0d58b40a6d49c1d",
+      "snapshot_sha256": "e8689c035fd7ef1b7c960b05fedda6b1f963176eb2e9af37a0d58b40a6d49c1d",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_sensors.py",
+      "source": "tests/test_arena_sensors.py",
+      "source_sha256": "e118f2451429b95b59dde8762c0e9a7078185e199d40d2323aa1896b44ac571b",
+      "snapshot_sha256": "e118f2451429b95b59dde8762c0e9a7078185e199d40d2323aa1896b44ac571b",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_session.py",
+      "source": "tests/test_arena_session.py",
+      "source_sha256": "e2ca69e60e7ad5a2a402928d0aafd5d5a117bc26b653631e7663a887442516fa",
+      "snapshot_sha256": "e2ca69e60e7ad5a2a402928d0aafd5d5a117bc26b653631e7663a887442516fa",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_surfaces.py",
+      "source": "tests/test_arena_surfaces.py",
+      "source_sha256": "b211c7de08e1d884bcf1beb54fb57631acd1a6e78d58903e9d54627786d9fd33",
+      "snapshot_sha256": "b211c7de08e1d884bcf1beb54fb57631acd1a6e78d58903e9d54627786d9fd33",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_task.py",
+      "source": "tests/test_arena_task.py",
+      "source_sha256": "a65ef011bb2821aba7011baedc8e9ec648d1f3a2bfcc3634c0e1896ddb82dea1",
+      "snapshot_sha256": "a65ef011bb2821aba7011baedc8e9ec648d1f3a2bfcc3634c0e1896ddb82dea1",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_transfer_task.py",
+      "source": "tests/test_arena_transfer_task.py",
+      "source_sha256": "2347903393a16a275bae1172b1162d9669e97a367ed1b7c0e904e2e042e069df",
+      "snapshot_sha256": "2347903393a16a275bae1172b1162d9669e97a367ed1b7c0e904e2e042e069df",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_video.py",
+      "source": "tests/test_arena_video.py",
+      "source_sha256": "999f2ec74a0edea9e688a7f59eef1d9f0f9e97df70ff3b59cd49b3776ec62032",
+      "snapshot_sha256": "999f2ec74a0edea9e688a7f59eef1d9f0f9e97df70ff3b59cd49b3776ec62032",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_wait.py",
+      "source": "tests/test_arena_wait.py",
+      "source_sha256": "7daf27895251544215efcfea9af71f5ded88bb4fd2092b2a162d1c0b03ce3597",
+      "snapshot_sha256": "7daf27895251544215efcfea9af71f5ded88bb4fd2092b2a162d1c0b03ce3597",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arena_worker.py",
+      "source": "tests/test_arena_worker.py",
+      "source_sha256": "5130b4351e9948f8438d048153fbe053a5ed68f373116d4fb7ee339b412e3224",
+      "snapshot_sha256": "5130b4351e9948f8438d048153fbe053a5ed68f373116d4fb7ee339b412e3224",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arm_gravity.py",
+      "source": "tests/test_arm_gravity.py",
+      "source_sha256": "d686f20655d0637b42aa022f75011498810d45bf66296a9fd4c2658d9a9730ce",
+      "snapshot_sha256": "d686f20655d0637b42aa022f75011498810d45bf66296a9fd4c2658d9a9730ce",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_arm_planner.py",
+      "source": "tests/test_arm_planner.py",
+      "source_sha256": "18b83482e609d544251147db6956c1a2956eb38f26caf74002e967ac45c6db95",
+      "snapshot_sha256": "18b83482e609d544251147db6956c1a2956eb38f26caf74002e967ac45c6db95",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_bimanual.py",
+      "source": "tests/test_bimanual.py",
+      "source_sha256": "8207afc4a4f46ee6f69453dc4795a89c9b63c5306c7d981deaf4b94a85f85948",
+      "snapshot_sha256": "8207afc4a4f46ee6f69453dc4795a89c9b63c5306c7d981deaf4b94a85f85948",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_box_alignment.py",
+      "source": "tests/test_box_alignment.py",
+      "source_sha256": "6f7b0a6c973bb14fe572370862f3b696547ac3d934c6cb1eaff4f40678c1515b",
+      "snapshot_sha256": "6f7b0a6c973bb14fe572370862f3b696547ac3d934c6cb1eaff4f40678c1515b",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_carry_frame.py",
+      "source": "tests/test_carry_frame.py",
+      "source_sha256": "046aa3206af7044192cd05ac5ad09d6145838f90ee30bdf8a674eb4a0b8690ca",
+      "snapshot_sha256": "046aa3206af7044192cd05ac5ad09d6145838f90ee30bdf8a674eb4a0b8690ca",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_carry_perception.py",
+      "source": "tests/test_carry_perception.py",
+      "source_sha256": "ec693e4771350f9d94382607c6dd415e2f4f70dea91f9dc55c4b04ee8a746440",
+      "snapshot_sha256": "ec693e4771350f9d94382607c6dd415e2f4f70dea91f9dc55c4b04ee8a746440",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_carry_preparation.py",
+      "source": "tests/test_carry_preparation.py",
+      "source_sha256": "9989e4d1f0c13480b2d6e1e481939360a539da007e48e1e2cfa0d266764f248a",
+      "snapshot_sha256": "9989e4d1f0c13480b2d6e1e481939360a539da007e48e1e2cfa0d266764f248a",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_codex_agent.py",
+      "source": "tests/test_codex_agent.py",
+      "source_sha256": "f39492bc9a49bba351a40e730728645ea1f6c71da7c96fc842fc09ef8c411f1b",
+      "snapshot_sha256": "f39492bc9a49bba351a40e730728645ea1f6c71da7c96fc842fc09ef8c411f1b",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_contracts.py",
+      "source": "tests/test_contracts.py",
+      "source_sha256": "469b1694750a6146052e23dcbf11a58c7b1339513579d4f6064cb520067454f0",
+      "snapshot_sha256": "469b1694750a6146052e23dcbf11a58c7b1339513579d4f6064cb520067454f0",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_convex_placement.py",
+      "source": "tests/test_convex_placement.py",
+      "source_sha256": "8d17d56d5ccd5c015c3178ee86693336843c4f288cdd4f51b2b1bfa0774e5668",
+      "snapshot_sha256": "8d17d56d5ccd5c015c3178ee86693336843c4f288cdd4f51b2b1bfa0774e5668",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_destination_surface.py",
+      "source": "tests/test_destination_surface.py",
+      "source_sha256": "c88213e12a03696df9ddef7e09a747c16143766ae7959ab869b399216081206c",
+      "snapshot_sha256": "c88213e12a03696df9ddef7e09a747c16143766ae7959ab869b399216081206c",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_front_tracking.py",
+      "source": "tests/test_front_tracking.py",
+      "source_sha256": "5a1cf29a588ce58d0800331f9ca2be3914e0e9c4f58d043e97bbce21c298602a",
+      "snapshot_sha256": "5a1cf29a588ce58d0800331f9ca2be3914e0e9c4f58d043e97bbce21c298602a",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_hand_clearance.py",
+      "source": "tests/test_hand_clearance.py",
+      "source_sha256": "aad408b1446b69a084c9bf49ab91d5b9d4b725f8acd14c05e5e6ab4f1dbd932c",
+      "snapshot_sha256": "aad408b1446b69a084c9bf49ab91d5b9d4b725f8acd14c05e5e6ab4f1dbd932c",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_hand_sensors.py",
+      "source": "tests/test_hand_sensors.py",
+      "source_sha256": "a6a1aff3683b2effeaa7b8c08db5294ab746b6e27cc0b15f0693387458f0f57d",
+      "snapshot_sha256": "a6a1aff3683b2effeaa7b8c08db5294ab746b6e27cc0b15f0693387458f0f57d",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_held_alignment.py",
+      "source": "tests/test_held_alignment.py",
+      "source_sha256": "a379ef0b0655501045ea8162a1b9f88112efbbce6f8abe741cf5af34b1622b8d",
+      "snapshot_sha256": "a379ef0b0655501045ea8162a1b9f88112efbbce6f8abe741cf5af34b1622b8d",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_interactive.py",
+      "source": "tests/test_interactive.py",
+      "source_sha256": "567c5d141855af6615d18e62bdb8d0a427143e8a808efb55b33b8470d450641b",
+      "snapshot_sha256": "567c5d141855af6615d18e62bdb8d0a427143e8a808efb55b33b8470d450641b",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_level_source_plane.py",
+      "source": "tests/test_level_source_plane.py",
+      "source_sha256": "85253a8702c730e18b65e095991fa9e3f54fb349b63f933cde3da752bd367ded",
+      "snapshot_sha256": "85253a8702c730e18b65e095991fa9e3f54fb349b63f933cde3da752bd367ded",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_live_runner.py",
+      "source": "tests/test_live_runner.py",
+      "source_sha256": "1ee027106e42760e95d07c711169a5278c7c60e111db8b2450bc3de53ebde21d",
+      "snapshot_sha256": "1ee027106e42760e95d07c711169a5278c7c60e111db8b2450bc3de53ebde21d",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_loaded_stop.py",
+      "source": "tests/test_loaded_stop.py",
+      "source_sha256": "998defc435189ab7abefb04bdaf4d97c7dbcb298024f67df7df0b4dd098c62c5",
+      "snapshot_sha256": "998defc435189ab7abefb04bdaf4d97c7dbcb298024f67df7df0b4dd098c62c5",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_measured_turn.py",
+      "source": "tests/test_measured_turn.py",
+      "source_sha256": "ac0b325ad37e5d5e80e4a4f0f2b919605c60294ec15e62831073150a43b642b7",
+      "snapshot_sha256": "ac0b325ad37e5d5e80e4a4f0f2b919605c60294ec15e62831073150a43b642b7",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_mobility.py",
+      "source": "tests/test_mobility.py",
+      "source_sha256": "35e6d24a5bb9c2886d1107174e2a5b2ed2aea4973a03560cdfc35d49ef76108b",
+      "snapshot_sha256": "35e6d24a5bb9c2886d1107174e2a5b2ed2aea4973a03560cdfc35d49ef76108b",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_motion_sequence.py",
+      "source": "tests/test_motion_sequence.py",
+      "source_sha256": "4bf70992e92b6573471b41f68011db6850c02dfc9e4b74b1752e30ca43ba9090",
+      "snapshot_sha256": "4bf70992e92b6573471b41f68011db6850c02dfc9e4b74b1752e30ca43ba9090",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_movable_box.py",
+      "source": "tests/test_movable_box.py",
+      "source_sha256": "f722640b3ca509121e78d1d23a08eb3b340a2a3a06dba7af32ede20653b5da05",
+      "snapshot_sha256": "f722640b3ca509121e78d1d23a08eb3b340a2a3a06dba7af32ede20653b5da05",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_navigation_reference.py",
+      "source": "tests/test_navigation_reference.py",
+      "source_sha256": "2ddd453f7ee3963cebe529021edc316de84dcbb32af3ef7bcb9ec5a0b2c5d73b",
+      "snapshot_sha256": "2ddd453f7ee3963cebe529021edc316de84dcbb32af3ef7bcb9ec5a0b2c5d73b",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_observation_integration.py",
+      "source": "tests/test_observation_integration.py",
+      "source_sha256": "890d72c3b4685de17935e237dceb48f39bc5739b75d12aae851222d306d7e619",
+      "snapshot_sha256": "890d72c3b4685de17935e237dceb48f39bc5739b75d12aae851222d306d7e619",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_observations.py",
+      "source": "tests/test_observations.py",
+      "source_sha256": "33561b7c2d57dca2d3c2b9ae68c659c8686d070bb6df485f05e085609aca635e",
+      "snapshot_sha256": "33561b7c2d57dca2d3c2b9ae68c659c8686d070bb6df485f05e085609aca635e",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_observed_approach.py",
+      "source": "tests/test_observed_approach.py",
+      "source_sha256": "ba478093ca98c3f25d6bb17901e826e5e6172cf27d2932eab9fd3ba82ad571f7",
+      "snapshot_sha256": "ba478093ca98c3f25d6bb17901e826e5e6172cf27d2932eab9fd3ba82ad571f7",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_observed_hand.py",
+      "source": "tests/test_observed_hand.py",
+      "source_sha256": "c446acb1db33251699323c344fa9126c61e1968bd4d5bbbeb74d9080d3f91d69",
+      "snapshot_sha256": "c446acb1db33251699323c344fa9126c61e1968bd4d5bbbeb74d9080d3f91d69",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_paired_api.py",
+      "source": "tests/test_paired_api.py",
+      "source_sha256": "325a82e311b40cccf0995c0f6e1eac7f7dde6ad95e414087d21798f9068384c8",
+      "snapshot_sha256": "325a82e311b40cccf0995c0f6e1eac7f7dde6ad95e414087d21798f9068384c8",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_paired_execution.py",
+      "source": "tests/test_paired_execution.py",
+      "source_sha256": "855d805f3bee86f9bb81241e19c595bdc2bc5404c62ae9b4979eb44efe94daf5",
+      "snapshot_sha256": "855d805f3bee86f9bb81241e19c595bdc2bc5404c62ae9b4979eb44efe94daf5",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_pipeline.py",
+      "source": "tests/test_pipeline.py",
+      "source_sha256": "fad487536d7a2f98e6d43a1f707f8797db6ebe89f999eba6c7d6a65c3def94c8",
+      "snapshot_sha256": "fad487536d7a2f98e6d43a1f707f8797db6ebe89f999eba6c7d6a65c3def94c8",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_placement_geometry.py",
+      "source": "tests/test_placement_geometry.py",
+      "source_sha256": "514e10c692e30267a2a28f06141c2c7bbf070c08227d38dc46ab6d27f230b910",
+      "snapshot_sha256": "514e10c692e30267a2a28f06141c2c7bbf070c08227d38dc46ab6d27f230b910",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_placement_retraction.py",
+      "source": "tests/test_placement_retraction.py",
+      "source_sha256": "3f917a727ab786c704832bcb3f85bce2d752652bfeb065597910ae6153838fe0",
+      "snapshot_sha256": "3f917a727ab786c704832bcb3f85bce2d752652bfeb065597910ae6153838fe0",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_playback.py",
+      "source": "tests/test_playback.py",
+      "source_sha256": "7d214137023c9ef18e3588dfc193c63c9123fcd0726fe4dc010629a8f60eccc2",
+      "snapshot_sha256": "7d214137023c9ef18e3588dfc193c63c9123fcd0726fe4dc010629a8f60eccc2",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_preferred_retraction.py",
+      "source": "tests/test_preferred_retraction.py",
+      "source_sha256": "f30b83693fba83046c5c140a27608aa5ebcfc42ad0e1ca5c617e0f05437cc4dc",
+      "snapshot_sha256": "f30b83693fba83046c5c140a27608aa5ebcfc42ad0e1ca5c617e0f05437cc4dc",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_prepared_placement.py",
+      "source": "tests/test_prepared_placement.py",
+      "source_sha256": "59265f6f591508af13a2fa916c9db60d0394d99f9b42abe4c8dd5da0f6b883a5",
+      "snapshot_sha256": "59265f6f591508af13a2fa916c9db60d0394d99f9b42abe4c8dd5da0f6b883a5",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_recovery_reference.py",
+      "source": "tests/test_recovery_reference.py",
+      "source_sha256": "1cd4e59a69c967c9ad84ccdca54a5da8f3023062ecaf35a6a1c557bf0b333f4d",
+      "snapshot_sha256": "1cd4e59a69c967c9ad84ccdca54a5da8f3023062ecaf35a6a1c557bf0b333f4d",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_remembered_source_plane.py",
+      "source": "tests/test_remembered_source_plane.py",
+      "source_sha256": "ecf5acf0da75b3509439ebd48976cb014741e94e20ff7ecb41d11a185de1d4bd",
+      "snapshot_sha256": "ecf5acf0da75b3509439ebd48976cb014741e94e20ff7ecb41d11a185de1d4bd",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_retreat_scoring.py",
+      "source": "tests/test_retreat_scoring.py",
+      "source_sha256": "139b4b813f0c1dcb7b5e7154a3cac48c8ec8c87c3d09031b89ed1ea8a3927b15",
+      "snapshot_sha256": "139b4b813f0c1dcb7b5e7154a3cac48c8ec8c87c3d09031b89ed1ea8a3927b15",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_retreat_stop.py",
+      "source": "tests/test_retreat_stop.py",
+      "source_sha256": "f5b913b975dd794350be5fbec0d7e5b9b41908002c4f92e6e5cd82fb3aa0a4aa",
+      "snapshot_sha256": "f5b913b975dd794350be5fbec0d7e5b9b41908002c4f92e6e5cd82fb3aa0a4aa",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_rgbd_box_geometry.py",
+      "source": "tests/test_rgbd_box_geometry.py",
+      "source_sha256": "d074d89684f119e298db5962890e4892b1b44f5b835446ca31d101241fcb5329",
+      "snapshot_sha256": "d074d89684f119e298db5962890e4892b1b44f5b835446ca31d101241fcb5329",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_rgbd_box_tracking.py",
+      "source": "tests/test_rgbd_box_tracking.py",
+      "source_sha256": "be6d52324ed0331248c910d34711e9e2bb71e5b9ff4b2e8653bf8630bfe6a12c",
+      "snapshot_sha256": "be6d52324ed0331248c910d34711e9e2bb71e5b9ff4b2e8653bf8630bfe6a12c",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_rgbd_geometry.py",
+      "source": "tests/test_rgbd_geometry.py",
+      "source_sha256": "296fcbc704afaf1e8a0531500b22db23789824613f0f31b97d14a34ca1eb62b3",
+      "snapshot_sha256": "296fcbc704afaf1e8a0531500b22db23789824613f0f31b97d14a34ca1eb62b3",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_robot.py",
+      "source": "tests/test_robot.py",
+      "source_sha256": "c6cb66dfae7c840151a71f5815797f39e48707d53e1d70c356a889eaf189ddda",
+      "snapshot_sha256": "c6cb66dfae7c840151a71f5815797f39e48707d53e1d70c356a889eaf189ddda",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_routes.py",
+      "source": "tests/test_routes.py",
+      "source_sha256": "181f04e191e427b6937fef813f079dcb2e2f8b7d94c0642ba73ea78cf2f6181e",
+      "snapshot_sha256": "181f04e191e427b6937fef813f079dcb2e2f8b7d94c0642ba73ea78cf2f6181e",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_scene_motion.py",
+      "source": "tests/test_scene_motion.py",
+      "source_sha256": "b0f6be54520eb30073f5e420533743ad658e9aec0702e741c7143bef7c4397d4",
+      "snapshot_sha256": "b0f6be54520eb30073f5e420533743ad658e9aec0702e741c7143bef7c4397d4",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_scene_wrist_hold.py",
+      "source": "tests/test_scene_wrist_hold.py",
+      "source_sha256": "ed8e86a14a4a3dc5e442f6c3c9aa2b20ec02f13161a5fa5e77ba3e3be040e8be",
+      "snapshot_sha256": "ed8e86a14a4a3dc5e442f6c3c9aa2b20ec02f13161a5fa5e77ba3e3be040e8be",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_sensor_attitude.py",
+      "source": "tests/test_sensor_attitude.py",
+      "source_sha256": "1452be0d529de050763dfe15060ca240f646358181b703aebacb6ec510accc5d",
+      "snapshot_sha256": "1452be0d529de050763dfe15060ca240f646358181b703aebacb6ec510accc5d",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_sensor_cadence.py",
+      "source": "tests/test_sensor_cadence.py",
+      "source_sha256": "e39f258579635f879e0e011f37e7c54c7133ecea064d99fd47d95c55018848d9",
+      "snapshot_sha256": "e39f258579635f879e0e011f37e7c54c7133ecea064d99fd47d95c55018848d9",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_sensor_control_boundary.py",
+      "source": "tests/test_sensor_control_boundary.py",
+      "source_sha256": "512339c83d10578fd45cb365f0bf3330a29347af816af03ab07f9f19e6567dee",
+      "snapshot_sha256": "512339c83d10578fd45cb365f0bf3330a29347af816af03ab07f9f19e6567dee",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_sensor_destination_approach.py",
+      "source": "tests/test_sensor_destination_approach.py",
+      "source_sha256": "847c3067446f735154c3b7e6b79a95690d1edfbf168713e3b1d8d6b90505622e",
+      "snapshot_sha256": "847c3067446f735154c3b7e6b79a95690d1edfbf168713e3b1d8d6b90505622e",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_sensor_guard.py",
+      "source": "tests/test_sensor_guard.py",
+      "source_sha256": "25cef586d56ad896b18199ca2fa2f01530a178b440f798e2e4a77bd4fec74355",
+      "snapshot_sha256": "25cef586d56ad896b18199ca2fa2f01530a178b440f798e2e4a77bd4fec74355",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_sensor_kinematics.py",
+      "source": "tests/test_sensor_kinematics.py",
+      "source_sha256": "3be36e39e58db0784ec1f6936d7c809b9bca91e859128a4f759e80bc9a22826f",
+      "snapshot_sha256": "3be36e39e58db0784ec1f6936d7c809b9bca91e859128a4f759e80bc9a22826f",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_sensor_lift.py",
+      "source": "tests/test_sensor_lift.py",
+      "source_sha256": "19de1ac3295b7eae7659060b50d9e8d1624ce4c906d171a6dd59ad2aba8eec02",
+      "snapshot_sha256": "19de1ac3295b7eae7659060b50d9e8d1624ce4c906d171a6dd59ad2aba8eec02",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_sensor_retreat.py",
+      "source": "tests/test_sensor_retreat.py",
+      "source_sha256": "6e460b21ae8be6704c25784768b91e10b86bfc03d6778760cebe378e0a8c40a9",
+      "snapshot_sha256": "6e460b21ae8be6704c25784768b91e10b86bfc03d6778760cebe378e0a8c40a9",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_sensor_robot_geometry.py",
+      "source": "tests/test_sensor_robot_geometry.py",
+      "source_sha256": "ea99d9d90222e899d057d1db951f1f1317994d6c6dab730f51f2e0820950927b",
+      "snapshot_sha256": "ea99d9d90222e899d057d1db951f1f1317994d6c6dab730f51f2e0820950927b",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_sensor_turn.py",
+      "source": "tests/test_sensor_turn.py",
+      "source_sha256": "a7bd9fdd6daddc3ddb2743ce10879109eb69e3567a0fded78440dfd0ab98d598",
+      "snapshot_sha256": "a7bd9fdd6daddc3ddb2743ce10879109eb69e3567a0fded78440dfd0ab98d598",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_sensor_wrist_owner.py",
+      "source": "tests/test_sensor_wrist_owner.py",
+      "source_sha256": "43ba3f3bc64e298dc32d8cef866ef51cfbf90c8bc16580e64fd304d7adbce212",
+      "snapshot_sha256": "43ba3f3bc64e298dc32d8cef866ef51cfbf90c8bc16580e64fd304d7adbce212",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_session.py",
+      "source": "tests/test_session.py",
+      "source_sha256": "31c83fb7b53abd750b84524c4a1d6e2a4f8a558d76460a318bf2683509d9c6f5",
+      "snapshot_sha256": "31c83fb7b53abd750b84524c4a1d6e2a4f8a558d76460a318bf2683509d9c6f5",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_session_video.py",
+      "source": "tests/test_session_video.py",
+      "source_sha256": "499338a5b9163b4994a1e6f42f13cf0585c076adc08291336b9d4b35bcf7015f",
+      "snapshot_sha256": "499338a5b9163b4994a1e6f42f13cf0585c076adc08291336b9d4b35bcf7015f",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_sonic_backend.py",
+      "source": "tests/test_sonic_backend.py",
+      "source_sha256": "0706c0e90da37ba79c5a8f44b28eb0c33275b2bcba5500f94bcd76090b7c62e3",
+      "snapshot_sha256": "0706c0e90da37ba79c5a8f44b28eb0c33275b2bcba5500f94bcd76090b7c62e3",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_sonic_sim.py",
+      "source": "tests/test_sonic_sim.py",
+      "source_sha256": "e919060345a1a2869073481eaad53e30ae479eb983625dbec3c2979038dfaf58",
+      "snapshot_sha256": "e919060345a1a2869073481eaad53e30ae479eb983625dbec3c2979038dfaf58",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_source_plane.py",
+      "source": "tests/test_source_plane.py",
+      "source_sha256": "c20b2090aad36d175f33b5197ca1c4d0cd80a6df3b0da06901f5b86cd4966926",
+      "snapshot_sha256": "c20b2090aad36d175f33b5197ca1c4d0cd80a6df3b0da06901f5b86cd4966926",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_startup.py",
+      "source": "tests/test_startup.py",
+      "source_sha256": "2bce348a1e31e9edd2b95b1340d688bfc0a5e2d2fbd60c0e0f90d081e488aa5f",
+      "snapshot_sha256": "2bce348a1e31e9edd2b95b1340d688bfc0a5e2d2fbd60c0e0f90d081e488aa5f",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_stationary.py",
+      "source": "tests/test_stationary.py",
+      "source_sha256": "4b2816e5ce310a6aa4997510e9c2e6f51eda6306f6702231f244942d50a6e8f6",
+      "snapshot_sha256": "4b2816e5ce310a6aa4997510e9c2e6f51eda6306f6702231f244942d50a6e8f6",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_stationary_task.py",
+      "source": "tests/test_stationary_task.py",
+      "source_sha256": "c3bbb8ee66df22a0734477c2aad614bfe491629e5c4486dabaf33b46c641efcd",
+      "snapshot_sha256": "c3bbb8ee66df22a0734477c2aad614bfe491629e5c4486dabaf33b46c641efcd",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_stationary_tools.py",
+      "source": "tests/test_stationary_tools.py",
+      "source_sha256": "a5f289908d475bbd75681e150990d5cf080d5f6227841ae1bd8ef1199982d015",
+      "snapshot_sha256": "a5f289908d475bbd75681e150990d5cf080d5f6227841ae1bd8ef1199982d015",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_toolkit_layout.py",
+      "source": "tests/test_toolkit_layout.py",
+      "source_sha256": "d5f37c3ad5601c2d949dd8faa058ed414899d349d0ac70e370ceea3825160634",
+      "snapshot_sha256": "d5f37c3ad5601c2d949dd8faa058ed414899d349d0ac70e370ceea3825160634",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_trial.py",
+      "source": "tests/test_trial.py",
+      "source_sha256": "42997e231218cf68be469b37e501a0c2ac0b830ca768f3fe98064489c7a737e0",
+      "snapshot_sha256": "42997e231218cf68be469b37e501a0c2ac0b830ca768f3fe98064489c7a737e0",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_vertical_motion.py",
+      "source": "tests/test_vertical_motion.py",
+      "source_sha256": "8f9257394fb749e1acb2d3292078ebbc478970537775b551a7d63e5e5dc055d1",
+      "snapshot_sha256": "8f9257394fb749e1acb2d3292078ebbc478970537775b551a7d63e5e5dc055d1",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_visual_box_state.py",
+      "source": "tests/test_visual_box_state.py",
+      "source_sha256": "a10b0d6a975e404ce23359cf62d9d342bcb31bb833bb7fb1a611998259e53d6f",
+      "snapshot_sha256": "a10b0d6a975e404ce23359cf62d9d342bcb31bb833bb7fb1a611998259e53d6f",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_visual_grasp.py",
+      "source": "tests/test_visual_grasp.py",
+      "source_sha256": "754f24f0da94c152ea5821191368aa20de3cf9bb3db0378be43c409e980e2fff",
+      "snapshot_sha256": "754f24f0da94c152ea5821191368aa20de3cf9bb3db0378be43c409e980e2fff",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_visual_observation.py",
+      "source": "tests/test_visual_observation.py",
+      "source_sha256": "aaec3be56488ae4f0e63e7d792e1d9ed327c4600ffa7d75b53f933baf3a90551",
+      "snapshot_sha256": "aaec3be56488ae4f0e63e7d792e1d9ed327c4600ffa7d75b53f933baf3a90551",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_worker.py",
+      "source": "tests/test_worker.py",
+      "source_sha256": "1a9017d714e6f48a1cfc6ded586f43331ff288662af7cedf4959d02c89be6db7",
+      "snapshot_sha256": "1a9017d714e6f48a1cfc6ded586f43331ff288662af7cedf4959d02c89be6db7",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_workspace_agent.py",
+      "source": "tests/test_workspace_agent.py",
+      "source_sha256": "2bcf7010d27dbfdbf8ddc92002d3f7956003ba96a9295f840328dd5e9bd96d13",
+      "snapshot_sha256": "2bcf7010d27dbfdbf8ddc92002d3f7956003ba96a9295f840328dd5e9bd96d13",
+      "unchanged": true
+    },
+    {
+      "path": "tests/test_workstation.py",
+      "source": "tests/test_workstation.py",
+      "source_sha256": "f5df5948a6fd2f9957ccf12066556c3ceffd233ff47a37e539088d2670f1b384",
+      "snapshot_sha256": "f5df5948a6fd2f9957ccf12066556c3ceffd233ff47a37e539088d2670f1b384",
+      "unchanged": true
+    },
+    {
+      "path": "examples/arena-table-transfer.json",
+      "source": "examples/arena-table-transfer.json",
+      "source_sha256": "c6030553e8c361411e9c811b0e3133001ebdcbd8b93b42179910ed1dd3daa1d9",
+      "snapshot_sha256": "c6030553e8c361411e9c811b0e3133001ebdcbd8b93b42179910ed1dd3daa1d9",
+      "unchanged": true
+    },
+    {
+      "path": "examples/box-transfer/01-nominal.json",
+      "source": "examples/box-transfer/01-nominal.json",
+      "source_sha256": "f79901b9b157e02b66f1cfd3facc5cec734c62a473478afe30ea4edb2e547ba3",
+      "snapshot_sha256": "f79901b9b157e02b66f1cfd3facc5cec734c62a473478afe30ea4edb2e547ba3",
+      "unchanged": true
+    },
+    {
+      "path": "examples/box-transfer/02-box-offset.json",
+      "source": "examples/box-transfer/02-box-offset.json",
+      "source_sha256": "beb4f0c31f2ef0f4ba56524b5e92dd0dd1c3b45fc17d93ccc9e4e9847f3c9268",
+      "snapshot_sha256": "beb4f0c31f2ef0f4ba56524b5e92dd0dd1c3b45fc17d93ccc9e4e9847f3c9268",
+      "unchanged": true
+    },
+    {
+      "path": "examples/box-transfer/03-box-rotated.json",
+      "source": "examples/box-transfer/03-box-rotated.json",
+      "source_sha256": "7a65422b44c8a96a87c456c0c2ee57a964d6f30f7830bf1d3b3086592246c25d",
+      "snapshot_sha256": "7a65422b44c8a96a87c456c0c2ee57a964d6f30f7830bf1d3b3086592246c25d",
+      "unchanged": true
+    },
+    {
+      "path": "examples/box-transfer/04-opposite-side.json",
+      "source": "examples/box-transfer/04-opposite-side.json",
+      "source_sha256": "61c335b8a770b6ee05f212561ffbaadc3ea61da4f2c84e4ac0154e36a1e63036",
+      "snapshot_sha256": "61c335b8a770b6ee05f212561ffbaadc3ea61da4f2c84e4ac0154e36a1e63036",
+      "unchanged": true
+    },
+    {
+      "path": "examples/box-transfer/05-longer-carry.json",
+      "source": "examples/box-transfer/05-longer-carry.json",
+      "source_sha256": "7a48bae4550b80934b4b19dd3ad37962090e01a263dc8d96f614264e3952b4d8",
+      "snapshot_sha256": "7a48bae4550b80934b4b19dd3ad37962090e01a263dc8d96f614264e3952b4d8",
+      "unchanged": true
+    },
+    {
+      "path": "examples/box-transfer/06-higher-table.json",
+      "source": "examples/box-transfer/06-higher-table.json",
+      "source_sha256": "f393ddce33b78eca1390de1dcaf5c3b1c2d347d8be606f9b5e7e536314679dc5",
+      "snapshot_sha256": "f393ddce33b78eca1390de1dcaf5c3b1c2d347d8be606f9b5e7e536314679dc5",
+      "unchanged": true
+    },
+    {
+      "path": "examples/box-transfer/07-smaller-table.json",
+      "source": "examples/box-transfer/07-smaller-table.json",
+      "source_sha256": "4c55bdc46bba02844d84a31ed5bef67ff493390a4bac192aa83882818e16b9a0",
+      "snapshot_sha256": "4c55bdc46bba02844d84a31ed5bef67ff493390a4bac192aa83882818e16b9a0",
+      "unchanged": true
+    },
+    {
+      "path": "examples/box-transfer/08-rectangular-box.json",
+      "source": "examples/box-transfer/08-rectangular-box.json",
+      "source_sha256": "94b1d17cd17c5fe04770caa95906039a79b24f1ebcc1383840e88599ef7dad03",
+      "snapshot_sha256": "94b1d17cd17c5fe04770caa95906039a79b24f1ebcc1383840e88599ef7dad03",
+      "unchanged": true
+    },
+    {
+      "path": "examples/box-transfer/09-heavier-box.json",
+      "source": "examples/box-transfer/09-heavier-box.json",
+      "source_sha256": "041a80eadab1c4b9cc77a48b1d0ee2846fbe387c74a317cf77aca865cc4a70b7",
+      "snapshot_sha256": "041a80eadab1c4b9cc77a48b1d0ee2846fbe387c74a317cf77aca865cc4a70b7",
+      "unchanged": true
+    },
+    {
+      "path": "examples/box-transfer/10-combined.json",
+      "source": "examples/box-transfer/10-combined.json",
+      "source_sha256": "6c50e2052bb322f060cac27dba41f79a86db1a048cb6cc16aec81ba5c27c0d7b",
+      "snapshot_sha256": "6c50e2052bb322f060cac27dba41f79a86db1a048cb6cc16aec81ba5c27c0d7b",
+      "unchanged": true
+    },
+    {
+      "path": "examples/box-transfer/README.md",
+      "source": "examples/box-transfer/README.md",
+      "source_sha256": "7f237f4a25ca0d00ae65875a3321d651d4f04b323113cdff8dd7d32a7c38b849",
+      "snapshot_sha256": "e9f24be4e3ccf8e0b065c24558a2d4efaa8ad3f9cbd5f7d7658441e373db3d4a",
+      "unchanged": false
+    },
+    {
+      "path": "examples/box-transfer/suite.json",
+      "source": "examples/box-transfer/suite.json",
+      "source_sha256": "ada45ffbd537a9949fcd373bfd2c8bad3ac9c6743b4e83f83f0c532b64cb5f22",
+      "snapshot_sha256": "ada45ffbd537a9949fcd373bfd2c8bad3ac9c6743b4e83f83f0c532b64cb5f22",
+      "unchanged": true
+    },
+    {
+      "path": "examples/mobility-3m.json",
+      "source": "examples/mobility-3m.json",
+      "source_sha256": "c2de67af0026813749a1843b2580259718905f0788f35fbef4cda873499358ac",
+      "snapshot_sha256": "c2de67af0026813749a1843b2580259718905f0788f35fbef4cda873499358ac",
+      "unchanged": true
+    },
+    {
+      "path": "examples/mobility-6m.json",
+      "source": "examples/mobility-6m.json",
+      "source_sha256": "1af4ef6e2d6da6f846884f894cc02590836e2010e1729f07a494caf1adbcc56d",
+      "snapshot_sha256": "1af4ef6e2d6da6f846884f894cc02590836e2010e1729f07a494caf1adbcc56d",
+      "unchanged": true
+    },
+    {
+      "path": "examples/mobility-corner.json",
+      "source": "examples/mobility-corner.json",
+      "source_sha256": "f40b23e266f41ac7eb47632ce411989c974b81e8a4720b85c261d207890051a0",
+      "snapshot_sha256": "f40b23e266f41ac7eb47632ce411989c974b81e8a4720b85c261d207890051a0",
+      "unchanged": true
+    },
+    {
+      "path": "examples/mobility-return.json",
+      "source": "examples/mobility-return.json",
+      "source_sha256": "ed9a25559be3387b2e1daa2a352eb77e858ab03c1c8deab27250e1da05a9ce11",
+      "snapshot_sha256": "ed9a25559be3387b2e1daa2a352eb77e858ab03c1c8deab27250e1da05a9ce11",
+      "unchanged": true
+    },
+    {
+      "path": "examples/mobility_reference.py",
+      "source": "examples/mobility_reference.py",
+      "source_sha256": "9faa30f904b4a81f65e4cb80b1846bd454b99aaac2790b0a7d4ff9ef1253943c",
+      "snapshot_sha256": "9faa30f904b4a81f65e4cb80b1846bd454b99aaac2790b0a7d4ff9ef1253943c",
+      "unchanged": true
+    },
+    {
+      "path": "examples/reach_reference.py",
+      "source": "examples/reach_reference.py",
+      "source_sha256": "627552efa58de33e2312b1473411e1ea73003294cb8b672e5a4434621485e649",
+      "snapshot_sha256": "627552efa58de33e2312b1473411e1ea73003294cb8b672e5a4434621485e649",
+      "unchanged": true
+    },
+    {
+      "path": "examples/recovery_reference.py",
+      "source": "examples/recovery_reference.py",
+      "source_sha256": "315677dbce78d70e61e081b45aa9d9d0420ea32ec5610b1b9807e3fbb4d9b5c0",
+      "snapshot_sha256": "315677dbce78d70e61e081b45aa9d9d0420ea32ec5610b1b9807e3fbb4d9b5c0",
+      "unchanged": true
+    },
+    {
+      "path": "examples/route_reference.py",
+      "source": "examples/route_reference.py",
+      "source_sha256": "ec24b6ab4c119feca3621559a9fa93880711e6df1283f66c87ec49df8b0d925e",
+      "snapshot_sha256": "ec24b6ab4c119feca3621559a9fa93880711e6df1283f66c87ec49df8b0d925e",
+      "unchanged": true
+    },
+    {
+      "path": "examples/sonic_motion_reference.py",
+      "source": "examples/sonic_motion_reference.py",
+      "source_sha256": "2e247dc8f924b9f19165699ff313b2a2e672b57271039663764e143156c93226",
+      "snapshot_sha256": "2e247dc8f924b9f19165699ff313b2a2e672b57271039663764e143156c93226",
+      "unchanged": true
+    },
+    {
+      "path": "examples/turn_forward_reference.py",
+      "source": "examples/turn_forward_reference.py",
+      "source_sha256": "e68439719f91b964b4771660128ad3290472014e598396be4827efe503fb4f23",
+      "snapshot_sha256": "e68439719f91b964b4771660128ad3290472014e598396be4827efe503fb4f23",
+      "unchanged": true
+    },
+    {
+      "path": "examples/waypoint_initial.py",
+      "source": "examples/waypoint_initial.py",
+      "source_sha256": "8ffe4c6098d80865626a3740b9380ad402e9a2d6d4df5ef0210864107c0d4cb0",
+      "snapshot_sha256": "8ffe4c6098d80865626a3740b9380ad402e9a2d6d4df5ef0210864107c0d4cb0",
+      "unchanged": true
+    },
+    {
+      "path": "examples/waypoint_reference.py",
+      "source": "examples/waypoint_reference.py",
+      "source_sha256": "e807926f98a27b351ae6a1696a8c5d304a3761a4d26ef6bb293ae9f35aa4217f",
+      "snapshot_sha256": "e807926f98a27b351ae6a1696a8c5d304a3761a4d26ef6bb293ae9f35aa4217f",
+      "unchanged": true
+    },
+    {
+      "path": "examples/workstation-upper.json",
+      "source": "examples/workstation-upper.json",
+      "source_sha256": "5675b3bd2f435f27b6e900a85e069a7d4e35708235fcd90d379b75f61c7d0d36",
+      "snapshot_sha256": "5675b3bd2f435f27b6e900a85e069a7d4e35708235fcd90d379b75f61c7d0d36",
+      "unchanged": true
+    },
+    {
+      "path": "examples/workstation.json",
+      "source": "examples/workstation.json",
+      "source_sha256": "eb72453f5d946df8b47ced600e1cbfcdb249fe754ec1559eb4625d202b1c0f95",
+      "snapshot_sha256": "eb72453f5d946df8b47ced600e1cbfcdb249fe754ec1559eb4625d202b1c0f95",
+      "unchanged": true
+    },
+    {
+      "path": "examples/workstation_reference.py",
+      "source": "examples/workstation_reference.py",
+      "source_sha256": "67d64cbeae829b1fe5a6b35446d0ef1cc4866ca3f76fc583b6e27917bf78cfb7",
+      "snapshot_sha256": "67d64cbeae829b1fe5a6b35446d0ef1cc4866ca3f76fc583b6e27917bf78cfb7",
+      "unchanged": true
+    },
+    {
+      "path": "examples/workstation_upper_reference.py",
+      "source": "examples/workstation_upper_reference.py",
+      "source_sha256": "c56ac656148cd4492c83b98c9f046ebdba6f03f401cff902b5a67ae101488ba2",
+      "snapshot_sha256": "c56ac656148cd4492c83b98c9f046ebdba6f03f401cff902b5a67ae101488ba2",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/bootstrap-sonic-deps.sh",
+      "source": "scripts/bootstrap-sonic-deps.sh",
+      "source_sha256": "69bfa861e9f1ff0976631340dea16daef9fc0b447530ac58542e9c9a1810401f",
+      "snapshot_sha256": "69bfa861e9f1ff0976631340dea16daef9fc0b447530ac58542e9c9a1810401f",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/build-sonic.sh",
+      "source": "scripts/build-sonic.sh",
+      "source_sha256": "117937f6a9d1bd66d5890d0dbeb8695bb8b35c13515c136e103bdbccca4f317f",
+      "snapshot_sha256": "117937f6a9d1bd66d5890d0dbeb8695bb8b35c13515c136e103bdbccca4f317f",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/download-sonic-assets.py",
+      "source": "scripts/download-sonic-assets.py",
+      "source_sha256": "07b2bfa357843c2adf1e0bcaa0ed9e3a2003d30075c0cce1904588a73cb9bc6a",
+      "snapshot_sha256": "07b2bfa357843c2adf1e0bcaa0ed9e3a2003d30075c0cce1904588a73cb9bc6a",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/download-sonic-models.py",
+      "source": "scripts/download-sonic-models.py",
+      "source_sha256": "80dc762c7c1ad0cd0c9784e8f04b00867c988c250c98bf0f89cdbf9dbd041969",
+      "snapshot_sha256": "80dc762c7c1ad0cd0c9784e8f04b00867c988c250c98bf0f89cdbf9dbd041969",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/launch-sonic-controller.sh",
+      "source": "scripts/launch-sonic-controller.sh",
+      "source_sha256": "d469908fd54d9ab48c887e1023aba31b16226ab258f8b003af8d22575c224fb5",
+      "snapshot_sha256": "d469908fd54d9ab48c887e1023aba31b16226ab258f8b003af8d22575c224fb5",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/setup-sonic-runtime.sh",
+      "source": "scripts/setup-sonic-runtime.sh",
+      "source_sha256": "f7939c6bb21ac9abcfa30347ecd2a8ea751c143d894dcecf4538da08437dd569",
+      "snapshot_sha256": "f7939c6bb21ac9abcfa30347ecd2a8ea751c143d894dcecf4538da08437dd569",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/sensor-sequence.mp4",
+      "source": "runs/coupled-transfer-001/integrated-coupled-stop-02/fresh-sequence.mp4",
+      "source_sha256": "4dc66df6b1d88ca6d4afcd56973e313e5f8cfe81f698165a526604a6a35dced3",
+      "snapshot_sha256": "4dc66df6b1d88ca6d4afcd56973e313e5f8cfe81f698165a526604a6a35dced3",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/pickup-failure.mp4",
+      "source": "runs/coupled-transfer-001/view-change-probe-02/remote/artifacts/video/full.mp4",
+      "source_sha256": "2faf917825d729026bc79aa155718eb73364ca06d190f86b6df9c666259f19cc",
+      "snapshot_sha256": "2faf917825d729026bc79aa155718eb73364ca06d190f86b6df9c666259f19cc",
+      "unchanged": true
+    },
+    {
+      "path": "evidence/sensor-sequence-policy.py",
+      "source": "runs/coupled-transfer-001/integrated-coupled-stop-02/policy.py",
+      "source_sha256": "003c381883e98420a34b482079bc1f71871b7e1354ae14ef3502c3b9fe99eb1b",
+      "snapshot_sha256": "003c381883e98420a34b482079bc1f71871b7e1354ae14ef3502c3b9fe99eb1b",
+      "unchanged": true
+    },
+    {
+      "path": "examples/arena-sensor-sequence.json",
+      "source": "runs/coupled-transfer-001/integrated-coupled-stop-02/recipe.json",
+      "source_sha256": "67165c9d2875d7fd69c6cc226ca663f76b524738851b9d1ea8f79c2534357180",
+      "snapshot_sha256": "c6bba0cf04b0ca29c68dbb2023348313f4401ca5903351d01ea707d0a430da98",
+      "unchanged": false
+    }
+  ]
+}
