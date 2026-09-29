@@ -241,6 +241,25 @@ class ContinuousEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'history'):
             history.after(100)
 
+    def test_publisher_can_bound_retained_history_without_losing_recent_samples(self):
+        publisher = SonicPublisher('/unused-in-unit-test', '/unused-in-unit-test.sock',
+                                   history_limit=3)
+        publisher.client = RecordedClient()
+        for seq, timestamp in ((100, 10.), (104, 10.02), (108, 10.04),
+                               (112, 10.06), (116, 10.08)):
+            publisher.client.raw = measured(sequence=seq, sim_time=timestamp)
+            publisher._capture_sample()
+        self.assertEqual([raw['sequence'] for raw in publisher.samples_after(108)], [112, 116])
+        with self.assertRaisesRegex(RuntimeError, 'history'):
+            publisher.samples_after(100)
+
+    def test_persistent_runtime_uses_short_history_and_legacy_can_request_long_history(self):
+        from g1cap.sonic_runtime import SonicRuntime
+        persistent = SonicRuntime('/unused', '/unused/out', gpu=0)
+        legacy = SonicRuntime('/unused', '/unused/out', gpu=0, history_limit=12000)
+        self.assertEqual(persistent.history_limit, 512)
+        self.assertEqual(legacy.history_limit, 12000)
+
     def test_gap_fails_instead_of_granting_unobserved_dwell(self):
         publisher = self.publisher()
         backend = SonicBackend(publisher)

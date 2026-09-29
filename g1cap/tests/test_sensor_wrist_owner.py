@@ -136,8 +136,16 @@ class SensorWristOwnerTests(unittest.TestCase):
         self.grasp.update(gap_m=.1,raised=True,ready=True)
         self.step(0);c.cancel('test_setup',{'time':0.})
         hold=w.scene_wrist_hold;preload=hold.preload.copy()
+        # This heading/owner fixture starts after a verified pickup; supply
+        # independent camera retention and the external clearance dependency.
+        from g1cap.carry_admission import CarryAdmission
+        c.carry_retention=lambda now:dict(status='available',time_s=self.grasp['time_s'],
+            retained=True,settled=True,track_epoch=1,segment=w.box_perception.carry_frame.segment)
+        c.carry_admission=CarryAdmission()
+        self.assertTrue(c.carry_admission.record_pickup(0.,c.carry_retention(0.)))
+        w.probe_source_geometry=lambda now:None
         self.step(1)
-        self.assertEqual(c.start('turn_with_box',{'yaw_rad':.1},{'time':.02})['status'],'running')
+        reply=c.start('turn_with_box',{'yaw_rad':.1},{'time':.02});self.assertEqual(reply['status'],'running',reply)
         self.gyro=[0.,0.,.1]
         for i in range(2,121):
             if i==51:self.gyro=[0.,0.,0.]

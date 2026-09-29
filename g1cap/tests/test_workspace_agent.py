@@ -7,6 +7,25 @@ import unittest
 
 
 class WorkspaceAgentTests(unittest.TestCase):
+    def test_v2_prompt_reports_remaining_simulated_time_and_failure_advice(self):
+        m=self.module()
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            cli=self.fixture(root,'''sys.stdin.read()
+Path('policy.py').write_text('def run(robot, task):\\n robot.observe()\\n')
+''')
+            m.WorkspaceCodexAgent(cli=cli).generate(
+                dict(protocol='persistent_session',backend='arena',api='sensor contract',
+                     task={'observation_mode':'sensor_state_v2','deadline_s':240.0},
+                     observation={'observation_mode':'sensor_state_v2','time':91.0}),root/'generation')
+            prompt=(root/'generation/evidence/prompt.txt').read_text()
+            self.assertIn('240',prompt)
+            self.assertIn('91',prompt)
+            self.assertIn('reason',prompt)
+            self.assertIn('advice.suggest',prompt)
+            self.assertNotIn('Read-only paper/reference directories:',
+                             (root/'generation/resources/README.md').read_text())
+
     def test_sensor_context_uses_onboard_image_and_sensor_contract(self):
         from test_visual_observation import snapshot_fixture
         m=self.module()
@@ -156,9 +175,24 @@ Path('policy.py').write_text('def run(robot, task):\\n robot.observe()\\n')
             self.assertEqual((meta['model'],meta['reasoning'],meta['wall_timeout_s']),
                              ('gpt-6-astra','medium',300))
 
+    def test_astra_low_matches_command_and_recorded_settings(self):
+        m=self.module()
+        with tempfile.TemporaryDirectory() as root:
+            root=Path(root)
+            cli=self.fixture(root,'''assert sys.argv[sys.argv.index('--model')+1]=='gpt-6-astra'
+assert 'model_reasoning_effort="low"' in sys.argv
+sys.stdin.read()
+Path('policy.py').write_text('def run(robot, task):\\n robot.observe()\\n')
+''')
+            m.WorkspaceCodexAgent(cli=cli, timeout=300, model='gpt-6-astra', reasoning='low').generate(
+                {'api':'contract'}, root/'generation')
+            meta=json.loads((root/'generation/evidence/generation.json').read_text())
+            self.assertEqual((meta['model'],meta['reasoning'],meta['wall_timeout_s']),
+                             ('gpt-6-astra','low',300))
+
     def test_unsupported_settings_fail_before_cli_launch(self):
         m=self.module()
-        for settings in ({'model':'unknown'}, {'model':'gpt-6-astra','reasoning':'low'},
+        for settings in ({'model':'unknown'}, {'model':'gpt-6-astra','reasoning':'unsupported'},
                          {'vision_mode':'stream'}, {'timeout':301}):
             with self.subTest(settings=settings), self.assertRaises(ValueError):
                 m.WorkspaceCodexAgent(cli='/does/not/exist',**settings)

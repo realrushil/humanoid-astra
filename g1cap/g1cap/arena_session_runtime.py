@@ -80,18 +80,37 @@ def main():
                 elif task_kind=='source_return':score=ArenaBoxTask(task['source_bounds'])
                 elif task_kind=='table_transfer':
                     if recipe.get('fixture') not in ('two_empty_equal_height_tables_v1','box_transfer_v1'):raise ValueError('table transfer requires the empty-table fixture')
+                    # A person would say roughly where the other table is; the robot
+                    # still has to see it. Coarse bearing/distance only, from the
+                    # fixture, in the robot's own terms at its start pose.
+                    import math as _math
+                    scene=recipe.get('scene') or {}
+                    hint=''
+                    destination=(scene.get('tables') or {}).get('destination')
+                    if destination:
+                        dx,dy=destination['center_xy'][0],destination['center_xy'][1]-.18
+                        bearing=_math.degrees(_math.atan2(dy,dx));distance=_math.hypot(dx,dy)
+                        side='to your right' if bearing<-20 else 'to your left' if bearing>20 else 'straight ahead'
+                        front='behind you and ' if abs(bearing)>110 else '' if abs(bearing)<70 else ''
+                        hint=(f' The green table is roughly {distance:.1f} metres away, {front}{side}'
+                              f' from where you start; turn until the head camera sees it.')
                     task.update(surface_id='destination',minimum_travel_m=.5,
                         surfaces={name:parts[0] for name,parts in world.support_parts.items()},
-                        instruction='Pick up the brown box with both hands, carry it from the grey source table to the green destination table, place the whole box on the green tabletop and release both hands. Finish standing stably.')
+                        instruction='Pick up the brown box with both hands, carry it from the grey source table to the green destination table, place the whole box on the green tabletop and release both hands. Finish standing stably.'+hint)
                     score=ArenaTransferTask(task['surface_id'],task['minimum_travel_m'],
                         box_size_m=world.box_size,box_mass_kg=world.box_mass)
                 else:raise ValueError('unsupported Arena task_kind')
                 task['task_kind']=task_kind
                 task.update(limits,fixture=recipe.get('fixture','native_bin'))
+                sensor_track=world.box_perception is not None or world.v2
+                if world.v2:
+                    from .control_v2 import TOOLS
                 session=ArenaSession(world.control,task,out/'session',max_rounds=args.max_rounds,
                     worker_timeout=limits['worker_timeout_s'],
-                    sensor_observation=world.sensor_observation if world.box_perception is not None else None,
-                    controller_observation=world.controller_observation if world.box_perception is not None else None)
+                    sensor_observation=world.sensor_observation if sensor_track else None,
+                    controller_observation=world.controller_observation if sensor_track else None,
+                    camera_observation=world.camera_observation if sensor_track else None,
+                    tools=TOOLS if world.v2 else None)
                 def publish():
                     status=session.status()
                     status.update(metrics=score.metrics(),wall_elapsed_s=time.monotonic()-started)
@@ -112,7 +131,9 @@ def main():
                     elif time.monotonic()-started>=limits['wall_timeout_s']:session.finish('wall_deadline')
                     elif (out/'session/inbox/stop').exists():session.finish('requested_stop')
                     elif session.active_round is None:
-                        if world.box_perception is None and score.metrics()['success']:session.finish('task_success')
+                        # Truth-scored early stop only for the privileged track; the
+                        # sensor tracks must not learn success from episode endings.
+                        if world.box_perception is None and not world.v2 and score.metrics()['success']:session.finish('task_success')
                         elif len(session.rounds)>=session.max_rounds:session.finish('round_limit')
                     if world.step_index%10==0 or session.terminal_reason:publish()
         except Exception as error:

@@ -3,9 +3,25 @@ from pathlib import Path
 import tempfile
 import unittest
 from g1cap.execution import execute_policy
+from g1cap import execution
 
 
 class WorkerTests(unittest.TestCase):
+    def test_cleanup_uses_direct_child_when_group_signal_is_denied(self):
+        from unittest.mock import patch
+        class Process:
+            pid = 12345
+            def __init__(self, returncode): self.returncode = returncode; self.killed = False
+            def poll(self): return self.returncode
+            def kill(self): self.killed = True; self.returncode = -9
+        with patch.object(execution.os, 'killpg', side_effect=PermissionError):
+            exited = Process(0)
+            self.assertEqual(execution._kill_worker_group(exited), 'already_exited')
+            self.assertFalse(exited.killed)
+            live = Process(None)
+            self.assertEqual(execution._kill_worker_group(live), 'direct_child_kill')
+            self.assertTrue(live.killed)
+
     def run_policy(self, source, **options):
         calls = []
         def dispatch(method, args, kwargs, episode_id):

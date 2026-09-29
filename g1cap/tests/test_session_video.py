@@ -3,6 +3,17 @@ from g1cap.session_video import video_schedule, checked_source
 
 
 class SessionVideoTests(unittest.TestCase):
+    def test_ordered_reach_video_follows_scored_stage_then_shows_neutral(self):
+        from g1cap import session_video
+        self.assertTrue(hasattr(session_video, 'task_target_id'))
+        task_target_id = session_video.task_target_id
+        task = {'name': 'ordered_reach', 'target_ids': ['blue_lower', 'blue_upper']}
+        self.assertEqual(task_target_id(task, {'stage_index': 0}), 'blue_lower')
+        self.assertEqual(task_target_id(task, {'stage_index': 1}), 'blue_upper')
+        self.assertIsNone(task_target_id(task, {'stage_index': 2}))
+        self.assertIsNone(task_target_id(task, {'stage_index': 3}))
+        with self.assertRaises(ValueError): task_target_id(task, {'stage_index': 4})
+
     def test_overview_only_accelerates_outside_executed_rounds(self):
         events = [{'type':'round_start','sim_time':10},
                   {'type':'round_end','sim_time':12},
@@ -37,9 +48,9 @@ class VideoCollectionTests(unittest.TestCase):
             remote = RemoteSession('host', '/project', 0, Path(folder)/'remote',
                                    recipe={'task':'workstation_reach'})
             with patch.object(remote, '_ssh', side_effect=RuntimeError('renderer unavailable')):
-                with patch('g1cap.interactive.subprocess.run') as run:
+                with patch.object(remote, '_collect_artifacts') as collect:
                     remote.close()
-            self.assertEqual(run.call_args.args[0][0], 'scp')
+            collect.assert_called_once_with()
             self.assertIn('renderer unavailable', json.loads((remote.output/'video_error.json').read_text())['error'])
 
 

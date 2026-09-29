@@ -133,9 +133,11 @@ class SensorControlBoundaryTests(unittest.TestCase):
                 self.assertEqual(ordinary_calls,[])
                 if callback_present:self.assertEqual(c.stopping_failure,'stop_top_unavailable')
 
-    def test_two_distinct_fresh_images_admit_stabilization_not_completion(self):
+    def test_two_distinct_fresh_ready_images_admit_stabilization_not_completion(self):
+        # Hold readiness fixed here: these checks isolate camera cadence and
+        # raised-image continuity, independently of the handoff readiness gate.
         c=self.control();camera={'time_s':0.,'raised':False}
-        c.visual_grasp=lambda now:dict(status='available',ready=False,attitude_ok=True,
+        c.visual_grasp=lambda now:dict(status='available',ready=True,attitude_ok=True,
             scene_status='unavailable',**camera)
         c.start('pickup_box',{'object_id':'brown_box'},{'time':0.})
         for step in range(1,10):
@@ -150,7 +152,7 @@ class SensorControlBoundaryTests(unittest.TestCase):
     def test_nonraised_or_discontinuous_fresh_image_restarts_admission_count(self):
         for middle in ({'time_s':.2,'raised':False},{'time_s':.1,'raised':True}):
             c=self.control();camera={'time_s':0.,'raised':False}
-            c.visual_grasp=lambda now:dict(status='available',ready=False,attitude_ok=True,**camera)
+            c.visual_grasp=lambda now:dict(status='available',ready=True,attitude_ok=True,**camera)
             c.start('pickup_box',{'object_id':'brown_box'},{'time':0.})
             for step in range(1,20):
                 t=step*.02

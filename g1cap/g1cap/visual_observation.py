@@ -42,10 +42,19 @@ def validate_snapshot(snapshot, directory, session_id):
         if (obs['session_id']!=session_id or obs['step']!=snapshot['step'] or
                 obs['physics_step']!=snapshot['physics_step'] or obs['time']!=snapshot['sim_time_s']):
             raise ValueError('images and observation must describe the same step')
-        expected=['head'] if obs.get('observation_mode')=='sensor_estimates_v1' else ['head','overview']
+        sensor=obs.get('observation_mode')=='sensor_estimates_v1'
+        expected=obs.get('camera_names',['head']) if sensor else ['head','overview']
+        if sensor and expected not in (['head'],['head','left_wrist','right_wrist']):
+            raise ValueError('invalid onboard camera set')
         if [f['camera'] for f in snapshot['frames']]!=expected:
             raise ValueError('snapshot camera set differs from observation mode')
         for frame in snapshot['frames']:
+            if sensor and 'camera_names' in obs:
+                if (frame.get('modality')!='rgb' or not isinstance(frame.get('time_s'),(int,float))
+                        or not 0<=snapshot['sim_time_s']-frame['time_s']<=.150001
+                        or type(frame.get('step')) is not int or not 0<=frame['step']<=snapshot['step']
+                        or not re.fullmatch('[0-9a-f]{64}',frame.get('calibration_id',''))):
+                    raise ValueError('invalid or stale RGB camera capture')
             if frame['source'] not in ('live_camera','decoded_recording'):raise ValueError('invalid image provenance')
             for key in ('encoded_sha256','rgb_sha256'):
                 if not re.fullmatch('[0-9a-f]{64}',frame[key]):raise ValueError('invalid image hash')

@@ -136,6 +136,23 @@ def latch_environment_contact(previous, state):
     return None
 
 
+def latch_forbidden_contact(previous, state):
+    """Retain the first unsupported forbidden contact across physics samples.
+
+    The session scorer samples more slowly than physics. A brief external or
+    self collision must remain visible after the live contact list clears.
+    Supported initialization is excluded; its external-contact gate is the
+    separate first_environment_contact history.
+    """
+    if previous is not None:
+        return previous
+    if state['no_support'] is not True:
+        return None
+    if state['forbidden_contacts']:
+        return dict(sim_time=state['sim_time'], contact=state['forbidden_contacts'][0])
+    return None
+
+
 class SonicSimulation:
     """One physics owner; RPC reads immutable snapshots under the same lock."""
 
@@ -177,6 +194,7 @@ class SonicSimulation:
             self.env.mj_data.qpos[joint.qposadr] = value
         self.physics_started = False
         self.first_environment_contact = None
+        self.first_forbidden_contact = None
         # Upstream anchors the pelvis at z=1 m, suspending both feet. Support
         # the model's initial pose instead; never release into a drop test.
         self.env.elastic_band.point = self.env.mj_data.qpos[:3].copy()
@@ -278,7 +296,9 @@ class SonicSimulation:
         state['contacts']=contacts
         state.update(summarize_contacts(contacts))
         self.first_environment_contact = latch_environment_contact(self.first_environment_contact, state)
+        self.first_forbidden_contact = latch_forbidden_contact(self.first_forbidden_contact, state)
         state['first_environment_contact'] = self.first_environment_contact
+        state['first_forbidden_contact'] = self.first_forbidden_contact
         state['physics_started'] = self.physics_started
         state['support_anchor'] = env.elastic_band.point.tolist()
         for side, body_id in self.wrist_ids.items():

@@ -3,7 +3,8 @@ from copy import deepcopy
 import math
 
 MODE='sensor_estimates_v1'
-METHODS=frozenset({'observe','wait','pickup_box','hold_box','retreat_with_box','raise_held_box','turn_with_box'})
+# Isolated physical qualification only; not a promoted sensor capability.
+METHODS=frozenset({'move_with_box','depart_source','observe','observe_camera','wait','pickup_box','hold_box','retreat_with_box','raise_held_box','turn_with_box'})
 
 
 def selected(value,keys):
@@ -20,7 +21,7 @@ def public_task(task,*,sensor_control=False):
     return value
 
 
-def sensor_observation(packet,box,grasp,motion,*,loaded_stop=None):
+def sensor_observation(packet,box,grasp,motion,*,loaded_stop=None,retention=None):
     """Current body sample plus independently timestamped optical box estimate.
 
     Scene origin is local to a continuous stance segment, not global world pose.
@@ -44,8 +45,21 @@ def sensor_observation(packet,box,grasp,motion,*,loaded_stop=None):
     result=dict(observation_mode=MODE,time=packet['time_s'],step=packet['step'],physics_step=packet['step']*4,
         proprioception=body,box=measured_box,scene_motion=scene,
         grasp=selected(grasp,('status','reason','time_s','age_s','raised','ready','gap_m',
+            'gap_estimate_m','gap_error_m','gap_semantics',
             'opposing_near_wrists','attitude_ok','wrist_relative_ready','scene_status','gap_reference','settled_retention')),
         object_load=dict(status='unknown',mass_kg=None))
+    if retention is not None:
+        stamp=retention.get('time_s');box_stamp=box.get('observed_at_s')
+        current=(retention.get('status')=='available' and box.get('status')=='accepted'
+            and type(stamp) in (int,float) and math.isfinite(stamp)
+            and type(box_stamp) in (int,float) and math.isfinite(box_stamp)
+            and abs(stamp-box_stamp)<=1e-8 and 0<=packet['time_s']-stamp<=.150001
+            and retention.get('track_epoch')==box.get('track_epoch'))
+        result['retention']=(dict(selected(retention,('status','time_s','track_epoch','segment',
+            'retained','settled','wrist_relative_settled','opposing_near_wrists','attitude_ok',
+            'max_relative_speed_m_s','max_relative_rotation_rad_s','pickup_proven')),
+            age_s=packet['time_s']-stamp) if current else dict(status='unavailable',
+            reason='retention_observation_unavailable',retained=False,settled=False,pickup_proven=False))
     if loaded_stop is not None:
         observed=loaded_stop.get('time_s')
         current=(type(observed) in (int,float) and math.isfinite(observed)
@@ -53,7 +67,9 @@ def sensor_observation(packet,box,grasp,motion,*,loaded_stop=None):
         if not current:
             result['loaded_stop']=dict(status='unavailable',reason='loaded_stop_status_stale')
         else:
-            result['loaded_stop']=selected(loaded_stop,('status','time_s','clearance_lower_m','required_margin_m'))
+            result['loaded_stop']=selected(loaded_stop,('status','time_s','clearance_lower_m','required_margin_m',
+                'source_reference','source_observed_at_s','source_age_s',
+                'assumed_translation_error_m','assumed_rotation_error_rad'))
             if 'reason' in loaded_stop:result['loaded_stop']['reason']=public_reason(loaded_stop['reason'])
     return result
 
@@ -61,10 +77,11 @@ def sensor_observation(packet,box,grasp,motion,*,loaded_stop=None):
 def public_reason(reason):
     # Unknown controller exceptions/privileged guard details must not become
     # oracle recovery hints. Exact causes remain in physics/evaluation artifacts.
-    allowed={'accepted','stale_round','invalid_request','duplicate_argument','operation_active',
+    allowed={'departure_turn_clearance_and_hold_verified','departure_timeout','departure_did_not_settle_with_clearance','departure_retention_discontinuity','departure_observation_clock_invalid','departure_post_arm_screen_missing','accepted','stale_round','invalid_request','duplicate_argument','operation_active',
         'request_wall_timeout','worker_request_cancelled','duration_outside_envelope','unsupported_object',
         'visual_state_unavailable','visual_grasp_mode_supports_pickup_hold_only','sensor_tool_unavailable',
         'visually_raised_and_stable','hold_verified','dwell_elapsed','acquisition_timeout',
+        'acquisition_grasp_attempt_lost',
         'pose_hold_timeout','hold_did_not_settle','sensor_approach_unavailable','sensor_hand_clearance_unavailable','scene_wrist_measurement_unavailable',
         'scene_wrist_visual_state_unavailable','scene_wrist_target_outside_envelope',
         'scene_wrist_hold_invalidated','scene_wrist_update_time_gap','scene_wrist_command_time_gap',

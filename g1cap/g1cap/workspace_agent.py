@@ -109,8 +109,8 @@ class WorkspaceCodexAgent:
     def __init__(self, cli=None, timeout=180, *, model='gpt-5.6-luna', reasoning='low', vision_mode='off'):
         if not math.isfinite(timeout) or not 0 < timeout <= 300:
             raise ValueError('generation timeout must be in (0,300] seconds')
-        if (model, reasoning) not in (('gpt-5.6-luna','low'), ('gpt-6-astra','medium')):
-            raise ValueError('supported experiment settings are Luna/low or Astra/medium')
+        if (model, reasoning) not in (('gpt-5.6-luna','low'), ('gpt-6-astra','low'), ('gpt-6-astra','medium')):
+            raise ValueError('supported experiment settings are Luna/low or Astra/low or Astra/medium')
         if vision_mode not in ('off','direct','structured'):
             raise ValueError('vision_mode must be off, direct or structured')
         self.cli = cli or find_codex()
@@ -124,15 +124,17 @@ class WorkspaceCodexAgent:
         evidence, workspace, resources = root/'evidence', root/'workspace', root/'resources'
         persistent = request.get('protocol') in ('persistent_session','recorded_observation')
         arena = request.get('backend') == 'arena'
-        sensor_mode=arena and request.get('task',{}).get('observation_mode')=='sensor_estimates_v1'
-        if sensor_mode and request.get('observation',{}).get('observation_mode')!='sensor_estimates_v1':
+        observation_mode=request.get('task',{}).get('observation_mode')
+        v2_mode=arena and observation_mode=='sensor_state_v2'
+        sensor_mode=arena and observation_mode in ('sensor_estimates_v1','sensor_state_v2')
+        if sensor_mode and request.get('observation',{}).get('observation_mode')!=observation_mode:
             raise ValueError('task and snapshot observation mode differ')
         if persistent:
             workspace = root.parent/'workspace'
             # This marker lives outside the agent-writable workspace. Previously
             # seen privileged data cannot be made unseen by changing a flag.
             marker=workspace.with_name('workspace-observation-mode.json')
-            mode='sensor_estimates_v1' if sensor_mode else 'legacy'
+            mode=observation_mode if sensor_mode else 'legacy'
             previous=json.loads(marker.read_text()) if marker.exists() else None
             if (previous is not None and previous!=mode) or (sensor_mode and workspace.exists() and previous is None):
                 raise ValueError('persistent workspace observation mode cannot change')
@@ -146,7 +148,9 @@ class WorkspaceCodexAgent:
         package = Path(__file__).resolve().parent
         project = package.parent
         # Snapshot only public runtime code, not historical candidates, test cases or run results.
-        if sensor_mode:
+        if v2_mode:
+            public_sources=[]  # the API document is the whole contract
+        elif sensor_mode:
             public_sources=[package/'arena_public.py',package/'execution.py']
         elif arena:
             public_sources = [package/name for name in ('arena_control.py','arena_observation.py','arena_retreat.py','arena_lift.py','arena_grasp.py','arena_motion.py','arena_placement.py','arena_surfaces.py',
@@ -174,7 +178,7 @@ class WorkspaceCodexAgent:
             'Return source code as the source field of the requested JSON schema.',
             'Write your final submitted program to policy.py in the workspace.')
         if persistent:
-            arena_document='arena_sensor.md' if sensor_mode else 'arena_box.md'
+            arena_document='arena_v2.md' if v2_mode else 'arena_sensor.md' if sensor_mode else 'arena_box.md'
             documents=([package/'tool_docs'/arena_document] if arena else
                        [p for p in sorted((package/'tool_docs').glob('*.md')) if p.name not in ('arena_box.md','visual_observation.md')])
             if arena and self.vision_mode!='off' and not sensor_mode:documents.append(package/'tool_docs/visual_observation.md')
@@ -197,8 +201,9 @@ class WorkspaceCodexAgent:
         (resources/'README.md').write_text(
             '# Trial resources\n\nRead API.md and task.json first. Python source is provided for inspection.\n'
             'The submitted worker supports one self-contained file using math and robot APIs; '
-            'your workspace can contain other analysis/helper files. It has no simulator endpoint.\n\n'
-            'Read-only paper/reference directories:\n'+''.join(f'- {p}\n' for p in read_roots))
+            'your workspace can contain other analysis/helper files. It has no simulator endpoint.\n'
+            + ('\nRead-only paper/reference directories:\n'+''.join(f'- {p}\n' for p in read_roots)
+               if read_roots else ''))
         config = permission_config(workspace, resources, read_roots)
         config['model_reasoning_effort'] = self.reasoning
         write_json(evidence/'codex-config.json', config)
@@ -231,6 +236,12 @@ class WorkspaceCodexAgent:
                                   'The packet records a historical state. This exercise does not execute or validate physical motion.')
             prompt=prompt.replace('the parent submits your file to the existing session.',
                                   'the parent saves your code for offline review only.')
+        elif v2_mode and persistent:
+            deadline=request['task'].get('deadline_s')
+            elapsed=request['observation'].get('time')
+            if deadline is not None and elapsed is not None:
+                prompt+=f' The episode has a {deadline:g} s simulated deadline; {elapsed:g} s has already elapsed and continues to count.'
+            prompt+=' When a tool fails, read its reason and advice.suggest (if present) before retrying.'
         (evidence/'prompt.txt').write_text(prompt)
         # The trusted CLI retains saved subscription auth; shell commands inherit only config's env.
         environment = {k:v for k,v in os.environ.items() if k in {
@@ -260,7 +271,7 @@ class WorkspaceCodexAgent:
                 public_request['visual_observations']=snapshots
                 paths=[resources/f['file'] for p in snapshots for f in p['frames']]
                 metadata.update(image_count=len(paths),visual_observations=snapshots)
-                prompt+=(' Attached images are onboard head RGB, previous then current if two packets. Read tool_docs/arena_sensor.md. '
+                prompt+=(' Attached images are permitted onboard RGB cameras in manifest order, previous then current if two packets. Each frame retains its own capture time. Read tool_docs/arena_sensor.md. '
                     if sensor_mode else ' Attached images follow task.json packet order: previous then current if two packets, head then overview in each. Read tool_docs/visual_observation.md. ')
                 if self.vision_mode=='structured':
                     prompt+='Write observation.md with brief visible facts, changes, uncertainty, measured feedback and next code action before writing policy.py. '

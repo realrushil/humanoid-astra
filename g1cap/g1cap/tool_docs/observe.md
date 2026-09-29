@@ -10,7 +10,7 @@
 
 **Result:** A state dictionary, not completed/failed. Check age and episode_status.
 
-Raw contact rows identify both geometries and include `position_world` (metres), `normal_world` (unit direction from geometry 1 to geometry 2), and `normal_force` (newtons). These are privileged simulator measurements, not deployed tactile sensing. `first_environment_contact` retains the first forbidden external contact, with its simulation time; it is historical evidence rather than a current-contact flag. The runtime rejects this event during startup. These fields do not authorize intentional contact through existing tools.
+Raw contact rows identify both geometries and include `position_world` (metres), `normal_world` (unit direction from geometry 1 to geometry 2), and `normal_force` (newtons). These are privileged simulator measurements, not deployed tactile sensing. `first_environment_contact` retains the first forbidden external contact with its simulation time and rejects disturbed startup. After temporary support is removed, `first_forbidden_contact` retains the first forbidden external **or self** contact at the faster physics sampling rate. A non-null value ends the admitted task even if the current `forbidden_contacts` list is empty. Both are historical evidence, not current-contact flags. These fields do not authorize intentional contact through existing tools.
 
 The legacy `approached` field applies only to the older approach/height task.
 It has no meaning for workstation reaching; it must not be used as completion.

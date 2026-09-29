@@ -10,6 +10,9 @@ from pathlib import Path
 import subprocess
 import textwrap
 
+# Camera videos keep one frame every this many 20 ms control steps (10 fps); see arena_world.
+VIDEO_PERIOD_STEPS = 5
+
 
 def read_rows(path):
     return [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
@@ -64,10 +67,13 @@ def render_session(root, *, timeout=1200):
     label('title',title,18,16,25)
     label('source','Recorded Arena physics | Exact executed Python and complete tool trace retained',18,58,21)
     label('head','HEAD CAMERA',915,430,22);label('goal',goal,915,480,22)
-    size=summary['task'].get('box_size_m',[.2,.2,.2]);mass=summary['task'].get('box_mass_kg',.1)
-    dimensions=' x '.join(f'{100*v:g}' for v in size)
-    label('limits',f'SIMULATION\n{dimensions} cm / {mass:g} kg\nMeasured pose/contact\nNot hardware evidence',915,705,18)
+    # Offline evaluator metadata is intentionally absent from sensor task context.
     metrics=summary['metrics'];success=metrics['success']
+    size=metrics.get('box_size_m',summary['task'].get('box_size_m'))
+    mass=metrics.get('box_mass_kg',summary['task'].get('box_mass_kg'))
+    dimensions=' x '.join(f'{100*v:g}' for v in size)+' cm' if size is not None else 'Size unrecorded'
+    weight=f'{mass:g} kg' if mass is not None else 'mass unrecorded'
+    label('limits',f'SIMULATION\n{dimensions} / {weight}\nMeasured pose/contact\nNot hardware evidence',915,705,18)
     reason=metrics.get('failure') or summary.get('terminal_reason') or 'incomplete'
     label('outcome','FINAL PHYSICAL OUTCOME: '+('PASS' if success else 'FAILED / '+reason.replace('_',' ')),18,810,24)
     label('provenance','Full recording, 1x simulation time | All waits, actions and failures retained',18,925,20)
@@ -119,7 +125,7 @@ def render_session(root, *, timeout=1200):
         subprocess.run(['ffmpeg','-v','error','-i',str(path),'-f','null','-'],check=True,timeout=timeout)
         stream=json.loads(subprocess.check_output(['ffprobe','-v','error','-count_frames','-select_streams','v:0',
             '-show_entries','stream=nb_read_frames,duration,width,height','-of','json',str(path)],timeout=timeout))['streams'][0]
-        if int(stream['nb_read_frames'])!=len(rows):raise ValueError('camera/state frame count mismatch')
+        if int(stream['nb_read_frames'])!=len(rows[::VIDEO_PERIOD_STEPS]):raise ValueError('camera/state frame count mismatch')
         verified[str(path.relative_to(root))]=stream
     provenance=dict(kind='recorded_physics_with_labels',sources=evidence['sources'],frames=len(rows),
                     renderer_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),

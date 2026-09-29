@@ -7,9 +7,9 @@ import signal
 import socket
 import subprocess
 import time
-import hashlib
 
 from .arena_session import atomic_json, session_limits
+from .source_overlay import verify_overlay, overlay_command
 
 
 def main():
@@ -45,11 +45,9 @@ def main():
     if any(free[gpu]<amount for gpu,amount in needed.items()):raise RuntimeError('insufficient free GPU memory for bounded allocation')
     overlay=args.source_overlay.resolve() if args.source_overlay else None
     if overlay is not None:
-        package=overlay/'g1cap'
-        if not package.is_dir():raise ValueError('source overlay must contain g1cap package')
-        manifest={}
-        for path in sorted(package.rglob('*.py')):
-            manifest[str(path.relative_to(overlay))]=hashlib.sha256(path.read_bytes()).hexdigest()
+        if Path(__file__).resolve().parent != overlay/'g1cap':
+            raise ValueError('launcher must import from the requested source overlay')
+        manifest=verify_overlay(overlay)
         (out/'source-overlay-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     pythonpath=':'.join(str(p) for p in ([overlay,root] if overlay is not None else [root,]))+':'+str(arena)
     environment=dict(os.environ,PYTHONPATH=pythonpath,OMP_NUM_THREADS='4',OPENBLAS_NUM_THREADS='4',
@@ -59,8 +57,19 @@ def main():
         '--model-path',str(root/'temp/arena-model'),'--embodiment-tag','NEW_EMBODIMENT','--device','cuda','--host','127.0.0.1','--port',str(args.port)]
     sim_command=[str(root/'temp/arena-venv/bin/python'),'-m','g1cap.arena_session_runtime',
         '--session-out',str(out),'--recipe',str(args.recipe),'--max-rounds',str(args.max_rounds),'--policy-port',str(args.port),
-        '--viz','none','--device','cpu','--num_envs','1','--enable_cameras',
+        '--viz','none','--device',recipe.get('sim_device','cpu'),'--num_envs','1','--enable_cameras',
         'galileo_g1_locomanip_pick_and_place','--object','brown_box','--embodiment','g1_wbc_joint']
+    if overlay is not None:
+        server_command=overlay_command(server_command[0],server_command[2],overlay,
+            out/'server-imports.json',*server_command[3:])
+        sim_command=overlay_command(sim_command[0],sim_command[2],overlay,
+            out/'runtime-imports.json',*sim_command[3:])
+    if recipe.get('profile'):
+        # py-spy as the PARENT (Tahiti has ptrace_scope=1: attaching to a running
+        # process is refused, launching a child under py-spy is allowed).
+        spy=Path(recipe.get('py_spy','/data/zimuwang-g1cap/tools/venv/bin/py-spy'))
+        sim_command=[str(spy),'record','--nonblocking','--rate','25','--format','speedscope',
+                     '--output',str(out/'profile.speedscope.json'),'--',*sim_command]
     owned=[];logs=[]
     def interrupted(signum,frame):raise InterruptedError(f'launcher signal {signum}')
     signal.signal(signal.SIGTERM,interrupted)

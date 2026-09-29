@@ -22,7 +22,7 @@ def _values(value):
 
 class SensorRecorder:
     def __init__(self, output, native, robot_model, *, sensor_balance=False,hand_positions=False,arm_gravity=False,
-                 rgbd_period_steps=5):
+                 rgbd_period_steps=5,wrist_cameras=False,save_frames=True):
         if type(rgbd_period_steps) is not int or rgbd_period_steps<=0:
             raise ValueError('rgbd_period_steps must be a positive integer')
         camera = native.scene['robot_head_cam']
@@ -35,10 +35,14 @@ class SensorRecorder:
                                            round(capture_period_s/native_period_s))>1e-8)):
             raise ValueError('native camera update period does not support requested RGB-D capture period')
         self.rgbd_period_steps=rgbd_period_steps
+        # Per-frame PNG/NPY files are only for offline replay (~15 GB per trial); the live
+        # frame in `latest_rgbd` is what the controller uses either way.
+        self.save_frames=save_frames
         self.output = Path(output)
         self.output.mkdir(parents=True, exist_ok=False)
         self.native = native
         self.latest_packet = self.latest_rgbd = None
+        self.rgb_stream=None
         self.latest_hands = None
         self.hand_stream = None
         robot = native.scene['robot']
@@ -82,6 +86,19 @@ class SensorRecorder:
                 frame_storage='RGB PNG plus depth float32 NPY; no instance/semantic labels'),
             prohibited_outputs=['world_pose','box_mass','box_pose','contact_force','support_flag'])
         self.camera_calibration = metadata['camera']
+        if wrist_cameras:
+            from .camera_rgb import RGBStream
+            calibrations={'head':self.camera_calibration}
+            for side in ('left','right'):
+                wrist=native.scene[side+'_wrist_cam'];offset=wrist.cfg.offset
+                calibrations[side+'_wrist']=dict(parent_frame=side+'_wrist_yaw_link',
+                    intrinsic=_values(wrist.data.intrinsic_matrices)[0].tolist(),
+                    width=wrist.cfg.width,height=wrist.cfg.height,
+                    offset_position_m=list(offset.pos),offset_quaternion_xyzw=list(offset.rot),
+                    offset_convention=offset.convention,modality='rgb',
+                    assumption='simulation mount, not measured hardware calibration')
+            self.rgb_stream=RGBStream(self.output/'onboard-rgb',calibrations,native.physics_dt)
+            metadata['onboard_rgb']=calibrations
         if hand_positions:
             metadata['hands']=dict(model='unitree_dex3_1',joint_names=list(DEX3_JOINTS),
                 source='ideal joint-position encoder proxy; no commanded positions',
@@ -118,16 +135,25 @@ class SensorRecorder:
         depth[~np.isfinite(depth) | (depth<=0)] = np.nan
         self.latest_rgbd = dict(step=step,time_s=time_s,rgb=rgb,depth_m=depth,
                                calibration=self.camera_calibration)
-        color_path=self.output/f'{step:06d}-rgb.png'
-        depth_path=self.output/f'{step:06d}-depth.npy'
-        imageio.imwrite(color_path,rgb)
-        np.save(depth_path,depth,allow_pickle=False)
         frame=dict(step=step,time_s=time_s,width=rgb.shape[1],height=rgb.shape[0],
-            rgb_file=color_path.name,depth_file=depth_path.name,
-            rgb_sha256=hashlib.sha256(color_path.read_bytes()).hexdigest(),
-            depth_sha256=hashlib.sha256(depth_path.read_bytes()).hexdigest(),
             valid_depth_fraction=float(np.isfinite(depth).mean()))
+        if self.save_frames:
+            color_path=self.output/f'{step:06d}-rgb.png'
+            depth_path=self.output/f'{step:06d}-depth.npy'
+            imageio.imwrite(color_path,rgb)
+            np.save(depth_path,depth,allow_pickle=False)
+            frame.update(rgb_file=color_path.name,depth_file=depth_path.name,
+                rgb_sha256=hashlib.sha256(color_path.read_bytes()).hexdigest(),
+                depth_sha256=hashlib.sha256(depth_path.read_bytes()).hexdigest())
         self.frames.write(json.dumps(frame,allow_nan=False)+'\n');self.frames.flush()
+        if self.rgb_stream is not None:
+            for name in self.rgb_stream.calibrations:
+                sensor=self.native.scene['robot_head_cam' if name=='head' else name+'_cam']
+                image=_values(sensor.data.output['rgb'])[0,:,:,:3].astype(np.uint8)
+                clock=dict(native_time_s=float(sensor._timestamp.numpy()[0]),
+                    updated_at_s=float(sensor._timestamp_last_update.numpy()[0]),
+                    frame=int(sensor.frame.warp.numpy()[0]))
+                self.rgb_stream.capture(name,image,step,time_s,clock)
 
     def measurements(self):
         """Owner-thread read-only view; holds RGB-D between configured captures."""
@@ -141,3 +167,4 @@ class SensorRecorder:
         self.stream.close()
         self.frames.close()
         if self.hand_stream is not None:self.hand_stream.close()
+        if self.rgb_stream is not None:self.rgb_stream.close()

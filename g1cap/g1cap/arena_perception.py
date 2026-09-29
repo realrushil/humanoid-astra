@@ -13,6 +13,7 @@ from .rgbd_box_geometry import initialize_box, observed_support_gap
 from .rgbd_box_tracking import box_image_points, refine_box_pose
 from .visual_box_state import BoxEstimateStream
 from .visual_grasp import VisualGraspWindow
+from .visual_retention import VisualRetention
 from .rgbd_geometry import depth_points,fit_planes
 from .scene_motion import StanceMotion,SceneStability,observed_floor,combine_grasp_motion
 from .carry_frame import FloorCarryFrame
@@ -24,6 +25,8 @@ class ArenaBoxPerception:
         self.model=model
         self.track=BoxEstimateStream()
         self.grasp=VisualGraspWindow()
+        self.retention=VisualRetention()
+        self.latest_retention=dict(status='unavailable',reason='not_initialized',retained=False,settled=False,pickup_proven=False)
         self.motion=StanceMotion()
         self.scene_stability=SceneStability()
         self.carry_frame=FloorCarryFrame()
@@ -34,6 +37,7 @@ class ArenaBoxPerception:
         self.last_step=-1
         self.latest_motion=None
         self.latest=dict(status='unavailable',reason='not_initialized')
+        self.latest_gap_reference='observed_under_box_plane'
 
     def begin_carry(self,now_s):
         """Associate the source from fresh measured geometry at tool admission.
@@ -42,6 +46,14 @@ class ArenaBoxPerception:
         explicitly start a new association; a tracking loss never does so.
         """
         if self.source_plane is not None:return
+        self.source_plane=self.prepare_source(now_s)
+
+    def prepare_source(self,now_s):
+        """Validate fresh source geometry without replacing the active identity.
+
+        Pickup commits this candidate only after policy reset succeeds. The
+        current camera's feedback keeps the reference that produced its gap.
+        """
         seed=self.carry_seed
         if seed is None or not 0<=now_s-seed['time_s']<=.150001:
             raise ValueError('carry_source_observation_unavailable')
@@ -50,7 +62,7 @@ class ArenaBoxPerception:
             seed['box'],seed['initial'],points=self._source_points(seed),floor_points=seed['floor_points'])
         if result['status']!='observed_candidate':
             raise ValueError('carry_source_observation_unavailable')
-        self.source_plane=source
+        return source
 
     def _source_points(self,seed):
         """Exclude known robot surfaces from this camera-time depth cloud."""
@@ -63,13 +75,33 @@ class ArenaBoxPerception:
         points=seed['points']
         return points[~self.robot_geometry.exclude(points,seed['packet'],seed['calibration'])]
 
-    def begin_acquisition(self):
-        """Reset source association only, preserving physical/sensor history."""
-        self.source_plane=None
-
     def advance_imu(self,time_s,gyro):
         """Every recorded 50 Hz packet, including steps between camera frames."""
         self.motion.advance_imu(time_s,gyro)
+
+    def acquisition_feedback(self,now_s):
+        """Fresh strict under-box geometry for explicit pickup admission only.
+
+        A lost active source remains lost. This single-image preview supplies
+        wrist opposition for retained-grasp rejection, never settled readiness.
+        """
+        seed=self.carry_seed
+        if (seed is None or not 0<=now_s-seed['time_s']<=.150001
+                or seed['box']['status']!='accepted' or seed['relative'] is None
+                or seed['initial'] is None or seed['initial']['status']!='observed_candidate'):
+            return dict(status='unavailable',reason='pickup_support_unavailable')
+        return dict(VisualGraspWindow().add(dict(seed['relative'],time_s=seed['time_s'],
+            gap_m=seed['initial']['gap_m'],dimensions_m=seed['box']['dimensions_m'],
+            up_body=seed['up_body'])),gap_reference='observed_under_box_plane')
+
+    def commit_acquisition(self,source,grasp):
+        """Install the validated admission after policy reset, keeping scene history."""
+        self.source_plane=source
+        self.grasp.samples.clear()
+        self.retention.clear()
+        self.latest_retention=dict(status='unavailable',reason='acquisition_restarted',retained=False,settled=False,pickup_proven=False)
+        self.latest=deepcopy(grasp)
+        self.latest_gap_reference=grasp['gap_reference']
 
     def control_frame(self,now_s):
         """Internal current-IMU frame; published camera estimates remain intact."""
@@ -83,7 +115,20 @@ class ArenaBoxPerception:
             return dict(status='unavailable',reason=(box['reason'] if box['status']!='accepted'
                 else self.latest['reason']),raised=False,ready=False,attitude_ok=False)
         return dict(deepcopy(self.latest),age_s=box['age_s'],
-                    gap_reference='source_height_plane' if self.source_plane is not None else 'observed_under_box_plane')
+                    gap_reference=self.latest_gap_reference)
+
+    def retention_feedback(self,now_s):
+        """Fresh independent retention; never fills a missing source gap."""
+        value=self.latest_retention
+        stamp=value.get('time_s')
+        valid=(type(now_s) in (int,float) and np.isfinite(now_s)
+            and type(stamp) in (int,float) and np.isfinite(stamp)
+            and 0<=now_s-stamp<=.150001)
+        box=self.track.observe(now_s) if valid else None
+        if (not valid or value['status']!='available' or box['status']!='accepted'
+                or box.get('track_epoch')!=value.get('track_epoch')):
+            return dict(status='unavailable',reason='retention_observation_unavailable',retained=False,settled=False,pickup_proven=False)
+        return dict(deepcopy(value),age_s=now_s-stamp)
 
     def update(self,packet,camera,up_body):
         """Process each new camera frame with encoders from that same time.
@@ -105,6 +150,12 @@ class ArenaBoxPerception:
         # One current background fit supplies both support gap and floor/stance
         # hypotheses. Visible geometry is not a complete scene collision map.
         background=depth_points(depth,k)[neutral]
+        # Forearms/thumbs can form a large slanted plane that passes the
+        # under-box support heuristic. Exclude calibrated robot geometry at
+        # this camera's encoder time before fitting floor/support candidates.
+        # Finger envelopes are conservative; this supplies no contact labels.
+        background=self._source_points(dict(points=background,packet=packet,
+                                             calibration=camera['calibration']))
         planes=fit_planes(background,max_planes=4,min_points=200)
         floor=observed_floor(planes,transform,feet,up_body)
         motion=self.motion.update(t,feet,floor)
@@ -140,13 +191,18 @@ class ArenaBoxPerception:
                                     (abs(background@normal_camera+offset)<=.003)]
         self.carry_seed=dict(time_s=t,frame=self.latest_carry_frame,camera_transform=transform,
             box=box,initial=support,points=background,floor_points=floor_points,
-            packet=packet,calibration=camera['calibration'],gyro_rotation=self.motion.rotation.copy())
+            packet=packet,calibration=camera['calibration'],gyro_rotation=self.motion.rotation.copy(),
+            relative=relative,up_body=np.asarray(up_body).tolist())
         height_reference=support
+        self.latest_gap_reference='observed_under_box_plane'
         if self.source_plane is not None:
+            self.latest_gap_reference='source_height_plane'
             height_reference=self.source_plane.observe(t,self.latest_carry_frame,transform,
                 box,support,points=self._source_points(self.carry_seed),floor_points=floor_points)
         if relative is not None and height_reference is not None and height_reference['status']=='observed_candidate':
             self.latest=self.grasp.add(dict(relative,time_s=t,gap_m=height_reference['gap_m'],
+                **(dict(gap_reference='source_height_plane',gap_error_m=height_reference.get('gap_error_m'))
+                   if self.source_plane is not None else {}),
                 dimensions_m=box['dimensions_m'],up_body=np.asarray(up_body).tolist()))
         else:
             self.grasp.samples.clear()
@@ -155,9 +211,11 @@ class ArenaBoxPerception:
         scene=self.scene_stability.update(t,motion,box,transform,up_body,
             grasp_ready=self.latest.get('ready',False))
         self.latest=combine_grasp_motion(self.latest,scene)
+        self.latest_retention=self.retention.update(time_s=t,box=box,relative=relative,
+            motion=motion,camera_transform=transform,up_body=up_body)
         return dict(step=camera['step'],time_s=t,up_body=np.asarray(up_body).tolist(),
             initialization=initial,fit=fit,box=box,relative=relative,support=support,
             height_reference=height_reference,carry_frame=self.latest_carry_frame,
             source_obstacle=self.source_plane.geometry if self.source_plane is not None else None,
             floor=floor,motion=motion,scene_stability=scene,
-            feedback=self.feedback(t))
+            feedback=self.feedback(t),retention=self.retention_feedback(t))

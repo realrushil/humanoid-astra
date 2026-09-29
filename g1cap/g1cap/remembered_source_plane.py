@@ -16,7 +16,7 @@ class RememberedSourcePlane:
     """Remember one measured source-front half-space with latched loss."""
 
     def __init__(self, time_s, motion, normal_body, offset_body, anchor_body,
-                 *, plane_error_m, plane_angle_rad, max_age_s):
+                 *, plane_error_m, plane_angle_rad, max_age_s, uncertainty=None):
         if motion.get('status') != 'tracked_local_segment' or abs(motion['time_s'] - time_s) > 1e-8:
             raise ValueError('initial motion unavailable')
         transform = _rigid(motion['body_in_segment'])
@@ -30,6 +30,10 @@ class RememberedSourcePlane:
                 max_age_s <= 0 or plane_angle_rad > np.pi or
                 abs(normal @ anchor + offset_body) > 1e-5):
             raise ValueError('invalid measured plane')
+        self.uncertainty = uncertainty
+        self.capture = uncertainty.snapshot() if uncertainty is not None else None
+        if self.capture is not None and (self.capture.time_s != time_s or uncertainty.segment != motion['segment']):
+            raise ValueError('source uncertainty capture mismatch')
         self.invalid = False
         self.time = float(time_s)
         self.segment = motion['segment']
@@ -39,6 +43,19 @@ class RememberedSourcePlane:
         self.error = float(plane_error_m)
         self.angle = float(plane_angle_rad)
 
+    def pose_uncertainty(self, now_s):
+        """Read continuous episode error without advancing or renewing a capture."""
+        if self.invalid:raise ValueError('source memory continuity unavailable')
+        if self.uncertainty is None:
+            if not 0 <= now_s-self.time <= self.max_age:
+                self.invalid=True
+                raise ValueError('source memory continuity unavailable')
+            return dict(translation_error_m=.10,rotation_error_rad=float(np.deg2rad(2)))
+        try:return self.uncertainty.bounds(self.capture,now_s)
+        except ValueError:
+            self.invalid=True
+            raise
+
     def query(self, now_s, motion, points_body, *, translation_error_m,
               rotation_error_rad):
         """Return conditional distances, or latch unavailable on continuity loss."""
@@ -46,12 +63,17 @@ class RememberedSourcePlane:
         if (not np.isfinite(values).all() or min(translation_error_m, rotation_error_rad) < 0 or
                 rotation_error_rad > np.pi):
             raise ValueError('invalid uncertainty')
-        if (self.invalid or not 0 <= now_s - self.time <= self.max_age or
+        if (self.invalid or now_s < self.time or
+                (self.uncertainty is None and now_s-self.time > self.max_age) or
                 motion.get('status') != 'tracked_local_segment' or
                 motion.get('segment') != self.segment or
                 abs(motion['time_s'] - now_s) > 1e-8):
             self.invalid = True
             raise ValueError('source memory continuity unavailable')
+        if self.uncertainty is not None:
+            errors=self.pose_uncertainty(now_s)
+            translation_error_m=max(translation_error_m,errors['translation_error_m'])
+            rotation_error_rad=max(rotation_error_rad,errors['rotation_error_rad'])
         transform = _rigid(motion['body_in_segment'])
         points = np.asarray(points_body, float)
         if (points.ndim != 2 or points.shape[1] != 3 or not len(points) or
@@ -69,4 +91,6 @@ class RememberedSourcePlane:
                     segment=self.segment, nominal_m=nominal.tolist(),
                     lower_m=(nominal - uncertainty).tolist(),
                     uncertainty_m=uncertainty.tolist(),
-                    fresh_obstacle_observation=False)
+                    fresh_obstacle_observation=False,
+                    pose_translation_error_m=float(translation_error_m),
+                    pose_rotation_error_rad=float(rotation_error_rad))

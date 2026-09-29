@@ -1,5 +1,13 @@
 # Execution and observation boundaries
 
+## Current Arena `sensor_state_v2` path
+
+The persistent session described below also carries the current v2 path. With `control_track: sensor_state_v2`, each 20 ms `ArenaWorld.step()` reads encoder/IMU state; every fifth step it consumes an RGB-D frame. `SensorState` estimates stance-foot/gyro odometry, `BoxTracker` estimates the box, and the table map retains observed patches in the estimated odometry frame. These are simulator-derived measurements, distinct from truth used by `arena_task.py` for scoring.
+
+`ControlV2.command()` sends the active bounded skill's action to the sole native controller path; `ControlV2.update()` checks completion and hard stops against the next estimated observation. Agent-visible data passes through `arena_public.py` and the [v2 tool contract](../g1cap/tool_docs/arena_v2.md). A walking completion, grasp encoder lag or `at_surface` report is not proof of a supported carried object or a fully contained placement. The current table patch can be clipped; its reported motion uncertainty omits box and map-extent error. The v2 path remains a development candidate for simulation.
+
+The older sensor path described later in this document uses different callbacks and assumptions. Its historical sequence video is not evidence that v2 completes a full transfer.
+
 ## One program revision
 
 `interactive.py` selects Arena from `recipe["backend"] == "arena"`; otherwise it uses SONIC. `RemoteSession` creates a unique remote run. Arena uploads the exact local package into an isolated source overlay, then starts `arena_launch.py`. SONIC expects matching code already installed in its remote root.

@@ -16,9 +16,10 @@ from .arena_lift import SupportedLift, supported_grasp_ready
 from .arena_grasp import GripPreparation
 from .arena_motion import LoadedTranslation, LoadedTurn, space_fault
 from .sensor_lift import ClearanceLift
+from .acquisition_retention import AcquisitionRetention
 
-METHODS=frozenset({'observe','wait','pickup_box','lift_supported_box','raise_held_box','hold_box','return_box_to_source','retreat_with_box','move_with_box','turn_with_box','place_box'})
-LOADED_METHODS=frozenset({'retreat_with_box','move_with_box','turn_with_box'})
+METHODS=frozenset({'depart_source','observe','wait','pickup_box','lift_supported_box','raise_held_box','hold_box','return_box_to_source','retreat_with_box','move_with_box','turn_with_box','place_box'})
+LOADED_METHODS=frozenset({'depart_source','retreat_with_box','move_with_box','turn_with_box'})
 DT=.02
 
 
@@ -48,10 +49,17 @@ def observation_fault(obs):
 
 
 class BoxControl:
-    def __init__(self, initial_action, acquisition, wrist_motion, *, placement_factory=None, visual_grasp=None,scene_hold=None,approach_feedback=None,hand_clearance_feedback=None,sensor_fault=None,sensor_retreat_factory=None,sensor_lift_ready=None,sensor_turn_factory=None,loaded_stop=None):
+    def __init__(self, initial_action, acquisition, wrist_motion, *, placement_factory=None, visual_grasp=None,scene_hold=None,approach_feedback=None,hand_clearance_feedback=None,sensor_fault=None,sensor_retreat_factory=None,sensor_lift_ready=None,sensor_turn_factory=None,loaded_stop=None,acquisition_begin=None,acquisition_grasp=None,carry_retention=None,sensor_destination_factory=None,sensor_departure_factory=None):
         self.last_action=self._action(initial_action)
         self.last_action[43:46]=[0.,0.,0.]
         self.acquisition=acquisition
+        self.acquisition_begin=acquisition_begin  # Flush policy chunks, never physical state.
+        self.acquisition_grasp=acquisition_grasp  # Fresh strict support, only for explicit pickup admission.
+        if carry_retention is not None and (not callable(carry_retention) or sensor_fault is None):
+            raise ValueError('carry retention requires sensor control')
+        self.carry_retention=carry_retention
+        from .carry_admission import CarryAdmission
+        self.carry_admission=CarryAdmission() if carry_retention is not None else None
         # Factory: (observation, common_translation_or_None) -> measured wrist
         # controller exposing command(joints, root, xyzw, previous, elapsed).
         # None requests the witnessed outward withdrawal; a vector requests lift.
@@ -86,8 +94,12 @@ class BoxControl:
         self.supported_lift=None
         self.placement=None
         self.last_observation_time=None
+        self.destination_motion_failure=None
+        self.sensor_destination_factory=sensor_destination_factory
+        self.sensor_departure_factory=sensor_departure_factory
         self.acquired=0
         self.acquired_at=None
+        self.acquisition_retention=AcquisitionRetention()
 
     @staticmethod
     def _action(value):
@@ -101,6 +113,11 @@ class BoxControl:
         return dict(status=status,reason=reason,observation={k:deepcopy(obs[k]) for k in keys if k in obs})
 
     def _finish(self,status,reason,obs):
+        if (self.method=='move_with_box' and status!='completed' and
+                getattr(self,'destination_travel_geometry',None) is not None):
+            self.destination_motion_failure=reason
+        if self.carry_admission is not None and self.method=='pickup_box' and status=='completed':
+            self.carry_admission.record_pickup(obs['time'],self.carry_retention(obs['time']))
         if self.phase=='sensor_lift' and status!='completed':self.lift_failed=True
         if status=='completed' and self.method in ('return_box_to_source','place_box'):
             self.grasp_prepared=False;self.preparation=None
@@ -122,10 +139,21 @@ class BoxControl:
         self.phase_started=obs['time']
         self.history.clear()
 
+    def _retained_carry(self):
+        return self.carry_admission is not None and self.carry_admission.owner is not None
+
+    def carry_feedback(self,now):
+        if self.carry_admission is None:raise ValueError('carry_pickup_not_verified')
+        sample=self.carry_retention(now)
+        if not self.carry_admission.observe(now,sample):
+            raise ValueError(self.carry_admission.failure or 'carry_pickup_not_verified')
+        return sample
+
     def _hold_metric(self,now):
         return self.visual_grasp(now) if self.visual_grasp is not None else assess_hold(list(self.history))
 
     def _settled_grasp(self):
+        if self._retained_carry():return self.carry_feedback(self.carry_admission.last_time)['settled']
         if self.visual_grasp is not None:
             return bool(self.history and self._hold_metric(self.history[-1]['time']).get('ready',False))
         metric=assess_hold(list(self.history))
@@ -144,6 +172,12 @@ class BoxControl:
         return self.sensor_fault(obs['time'])
 
     def _geometry_fault(self,now):
+        # Departure checks current front/hand evidence and final arm references
+        # in the post-wrist callback; missing front stops rather than bypasses it.
+        if self.method=='depart_source':return None
+        if self.destination_motion_failure:return self.destination_motion_failure
+        if getattr(self,'destination_travel_geometry',None) is not None:return self.destination_travel_geometry(now)
+        if getattr(self,'source_turn_geometry',None) is not None:return self.source_turn_geometry(now)
         for callback,reason in ((self.approach_feedback,'sensor_approach_unavailable'),
                 (self.hand_clearance_feedback,'sensor_hand_clearance_unavailable')):
             if callback is not None and callback(now)['status']!='available':return reason
@@ -175,20 +209,35 @@ class BoxControl:
         self.clearance_lift=lift
 
     def start(self,method,args,obs):
+        if getattr(self,'destination_travel_geometry',None) is not None and method not in ('move_with_box','hold_box','wait'):
+            return self._reply('rejected','destination_probe_scope',obs)
+        if (getattr(self,'source_turn_geometry',None) is not None and method not in ('turn_with_box','hold_box','wait')
+                and not (method=='move_with_box' and self.sensor_destination_factory is not None)):
+            return self._reply('rejected','source_turn_probe_scope',obs)
         if self.terminal_reason:return self._reply('rejected','episode_failed',obs)
         if self.method:return self._reply('rejected','operation_active',obs)
         fault=self._observation_fault(obs)
         if fault:return self._reply('rejected',fault,obs)
-        fields={'wait':{'duration'},'pickup_box':{'object_id'},'lift_supported_box':set(),'raise_held_box':{'clearance_m'},'hold_box':{'duration'},'return_box_to_source':set(),'retreat_with_box':{'distance_m'},'move_with_box':{'distance_m'},'turn_with_box':{'yaw_rad'},'place_box':{'surface_id'}}
+        fields={'depart_source':{'yaw_rad'},'wait':{'duration'},'pickup_box':{'object_id'},'lift_supported_box':set(),'raise_held_box':{'clearance_m'},'hold_box':{'duration'},'return_box_to_source':set(),'retreat_with_box':{'distance_m'},'move_with_box':{'distance_m'},'turn_with_box':{'yaw_rad'},'place_box':{'surface_id'}}
         if method not in fields or not isinstance(args,dict) or set(args)-fields[method]:
             return self._reply('rejected','invalid_request',obs)
+        sensor_departure=(method=='depart_source' and self.sensor_fault is not None and self.sensor_departure_factory is not None)
+        if method=='depart_source' and not sensor_departure:return self._reply('rejected','sensor_tool_unavailable',obs)
+        sensor_destination=(method=='move_with_box' and self.sensor_fault is not None and self.sensor_destination_factory is not None)
+        if sensor_destination and not self._retained_carry():return self._reply('rejected','carry_pickup_not_verified',obs)
         sensor_retreat=(method=='retreat_with_box' and self.sensor_fault is not None and self.sensor_retreat_factory is not None)
         sensor_turn=(method=='turn_with_box' and self.sensor_fault is not None and self.sensor_turn_factory is not None)
         sensor_raise=(method=='raise_held_box' and self.sensor_fault is not None and self.sensor_lift_ready is not None)
-        if self.visual_grasp is not None and method not in ('wait','pickup_box','hold_box') and not (sensor_retreat or sensor_raise or sensor_turn):
+        if self.visual_grasp is not None and method not in ('wait','pickup_box','hold_box') and not (sensor_retreat or sensor_raise or sensor_turn or sensor_destination or sensor_departure):
             return self._reply('rejected','sensor_tool_unavailable',obs)
-        if self.visual_grasp is not None and (method in ('pickup_box','hold_box') or sensor_retreat or sensor_raise or sensor_turn):
-            if self.visual_grasp(obs['time'])['status']!='available':
+        if self.visual_grasp is not None and (method in ('pickup_box','hold_box') or sensor_retreat or sensor_raise or sensor_turn or sensor_destination or sensor_departure):
+            if self._retained_carry():
+                try:admission_grasp=self.carry_feedback(obs['time'])
+                except ValueError as error:return self._reply('rejected',str(error),obs)
+            else:
+                admission_grasp=(self.acquisition_grasp if method=='pickup_box' and self.acquisition_grasp is not None
+                                 else self.visual_grasp)(obs['time'])
+            if admission_grasp['status']!='available':
                 return self._reply('rejected','visual_state_unavailable',obs)
             if self.sensor_fault is not None:
                 fault=self._geometry_fault(obs['time'])
@@ -204,12 +253,17 @@ class BoxControl:
             # Repeating an acquisition request is not evidence of a new grasp.
             # A retained visual grasp must use raise/hold, keeping its lift budget.
             if (self.sensor_lift_ready is not None and
-                    self.visual_grasp(obs['time']).get('opposing_near_wrists',False)):
+                    admission_grasp.get('opposing_near_wrists',False)):
                 return self._reply('rejected','retained_grasp_requires_raise_or_hold',obs)
             fault=self._geometry_fault(obs['time'])
             if fault:return self._reply('rejected',fault,obs)
+            if self.acquisition_begin is not None:
+                try:self.acquisition_begin(obs['time'])
+                except ValueError as error:return self._reply('rejected',str(error),obs)
             self.preparation=None;self.grasp_prepared=False
             self.clearance_lift=None;self.lift_used_m=0.;self.lift_failed=False
+            self.acquisition_retention=AcquisitionRetention()
+            if self.carry_admission is not None:self.carry_admission.reset()
             phase='acquire'
         elif method=='lift_supported_box':
             if not supported_grasp_ready(list(self.history)):
@@ -218,13 +272,13 @@ class BoxControl:
             phase=self.supported_lift.phase
         else:
             value=(args.get('distance_m') if method in ('retreat_with_box','move_with_box') else
-                   args.get('yaw_rad') if method=='turn_with_box' else
+                   args.get('yaw_rad') if method in ('turn_with_box','depart_source') else
                    args.get('clearance_m',.08) if method=='raise_held_box' else args.get('duration',1.))
             if isinstance(value,bool) or not isinstance(value,(int,float)) or not math.isfinite(value):
                 return self._reply('rejected','invalid_parameter',obs)
             if method in ('retreat_with_box','move_with_box') and not .20<=value<=.50:
                 return self._reply('rejected','distance_outside_envelope',obs)
-            if method=='turn_with_box' and not 0<abs(value)<=math.pi/2:
+            if method in ('turn_with_box','depart_source') and not 0<abs(value)<=math.pi/2:
                 return self._reply('rejected','angle_outside_envelope',obs)
             if method=='raise_held_box' and not .05<=value<=.10:
                 return self._reply('rejected','height_outside_envelope',obs)
@@ -243,8 +297,9 @@ class BoxControl:
                 self.motion_duration=distance/.01+1.
                 self.clearance_goal=value
                 phase='lift'
-            elif sensor_retreat or sensor_turn:
-                factory=self.sensor_turn_factory if sensor_turn else self.sensor_retreat_factory
+            elif sensor_retreat or sensor_turn or sensor_destination or sensor_departure:
+                factory=(self.sensor_departure_factory if sensor_departure else self.sensor_destination_factory if sensor_destination else
+                         self.sensor_turn_factory if sensor_turn else self.sensor_retreat_factory)
                 try:self.loaded_motion=factory(obs['time'],list(self.last_action),value)
                 except ValueError as error:return self._reply('rejected',str(error),obs)
                 phase=self.loaded_motion.phase
@@ -269,7 +324,7 @@ class BoxControl:
                     self.motion_value=value
                     phase='prepare_carry'
             elif method=='hold_box':
-                if not self._hold_metric(obs['time'])['ready']:return self._reply('rejected','clearance_below_goal',obs)
+                if not self._retained_carry() and not self._hold_metric(obs['time'])['ready']:return self._reply('rejected','clearance_below_goal',obs)
                 self.duration=value
                 phase='hold'
             else:
@@ -299,12 +354,17 @@ class BoxControl:
             self.terminal_reason=fault
             self._finish('failed',fault,obs)
             return list(self.last_action)
+        if self.carry_admission is not None:
+            self.carry_admission.observe(obs['time'],self.carry_retention(obs['time']))
         if self.sensor_fault is not None:
             fault=self._geometry_fault(obs['time'])
-            if not fault and self.visual_grasp(obs['time'])['status']!='available':
+            if not fault and self._retained_carry():
+                try:self.carry_feedback(obs['time'])
+                except ValueError as error:fault=str(error)
+            elif not fault and self.visual_grasp(obs['time'])['status']!='available':
                 fault='visual_state_unavailable'
             if fault:
-                if self.method in ('pickup_box','hold_box','retreat_with_box','raise_held_box','turn_with_box'):self._finish('failed',fault,obs)
+                if self.method in ('pickup_box','hold_box','retreat_with_box','raise_held_box','turn_with_box','move_with_box','depart_source'):self._finish('failed',fault,obs)
                 # Task-height precision can fail with collision edges intact.
                 # Screen stopped support before ordinary hold can invalidate the
                 # existing owner, including subsequent idle/wait ticks. Only the
@@ -312,7 +372,7 @@ class BoxControl:
                 return self._stopped_action(obs['time'])
         action=list(self.last_action)
         elapsed=(round((obs['time']-self.phase_started)/DT)+1)*DT
-        if self.visual_grasp is not None and self.method in ('pickup_box','hold_box'):
+        if self.visual_grasp is not None and self.method in ('pickup_box','hold_box') and not self._retained_carry():
             if self.visual_grasp(obs['time'])['status']!='available':
                 self._finish('failed','visual_state_unavailable',obs)
                 action=list(self.last_action)
@@ -343,6 +403,7 @@ class BoxControl:
                     self.phase=self.loaded_motion.phase
                 except ValueError as error:
                     self._finish('failed',str(error),obs)
+                    if self.destination_motion_failure:return self._stopped_action(obs['time'])
                     return list(self.last_action)
             else:action=self.loaded_motion.command(obs)
         elif self.method in ('place_box','return_box_to_source'):action=self.placement.command(obs)
@@ -351,9 +412,15 @@ class BoxControl:
             root=obs['root_quat'];xyzw=[*root[1:],root[0]]
             action[:43]=self.motion.command(obs['joint_pos'],obs['root_pos'],xyzw,action[:43],elapsed)
         if self.scene_hold is not None and self.terminal_reason is None:
-            try:action=self.scene_hold(self.phase,obs['time'],action)
+            try:
+                action=self.scene_hold(self.phase,obs['time'],action)
+                if self.method=='depart_source':
+                    action=self.loaded_motion.screened_command(obs['time'],action,self.last_action)
+                    self.phase=self.loaded_motion.phase
             except ValueError as error:
                 self._finish('failed',str(error),obs)
+                if (getattr(self.loaded_motion,'post_wrist_required',False) or getattr(self,'source_turn_geometry',None) is not None or
+                        getattr(self,'destination_travel_geometry',None) is not None):return self._stopped_action(obs['time'])
                 action=list(self.last_action)
         self.last_action=self._action(action)
         return list(self.last_action)
@@ -377,12 +444,14 @@ class BoxControl:
                 return self._finish('failed',self.terminal_reason,obs)
         self.last_observation_time=obs['time']
         self.history.append(deepcopy(obs))
+        if self.carry_admission is not None:
+            self.carry_admission.observe(obs['time'],self.carry_retention(obs['time']))
         if self.method is None:return self.result
         elapsed=round((obs['time']-self.phase_started)/DT)*DT
         visual=self.visual_grasp(obs['time']) if self.visual_grasp is not None else None
-        if visual is not None and self.method in ('pickup_box','hold_box') and visual['status']!='available':
+        if visual is not None and self.method in ('pickup_box','hold_box') and not self._retained_carry() and visual['status']!='available':
             return self._finish('failed','visual_state_unavailable',obs)
-        if self.sensor_fault is not None and self.method in ('pickup_box','hold_box','retreat_with_box','raise_held_box','turn_with_box'):
+        if self.sensor_fault is not None and self.method in ('pickup_box','hold_box','retreat_with_box','raise_held_box','turn_with_box','move_with_box','depart_source'):
             fault=self._geometry_fault(obs['time'])
             if fault:return self._finish('failed',fault,obs)
         if self.phase=='wait':
@@ -419,6 +488,8 @@ class BoxControl:
             if result:return self._finish(*result,obs)
         elif self.phase=='acquire':
             if self.sensor_fault is not None:
+                lost=self.acquisition_retention.update(obs['time'],visual)
+                if lost:return self._finish('failed',lost,obs)
                 # Two DISTINCT synchronized images admit stabilization, not
                 # completion. An unavailable stance pose does not invalidate a
                 # visible local grasp; the owner separately requires floor/IMU.
@@ -428,7 +499,12 @@ class BoxControl:
                 if fresh and observed_at!=self.acquired_at:
                     continuous=(self.acquired_at is not None and
                         0<observed_at-self.acquired_at<=.150001)
-                    self.acquired=(self.acquired+1 if continuous else 1) if visual['raised'] else 0
+                    # Raised geometry admits stabilization, not task success.
+                    # Requiring policy settling here can prevent the separate
+                    # hold owner from ever taking over. Verification below
+                    # still requires the unchanged stable pickup condition.
+                    eligible=visual['raised']
+                    self.acquired=(self.acquired+1 if continuous else 1) if eligible else 0
                     self.acquired_at=observed_at
                 admitted=fresh and self.acquired>=2
             else:
@@ -457,11 +533,17 @@ class BoxControl:
                 return self._finish('failed','clearance_below_goal',obs)
             if elapsed>=5:return self._finish('failed','pose_hold_timeout',obs)
         elif self.phase=='hold':
-            retained=visual['raised'] if visual is not None else obs['bilateral'] and obs['stance_clear'] and obs['clearance']>=.05
+            if self._retained_carry():
+                try:carry=self.carry_feedback(obs['time'])
+                except ValueError as error:return self._finish('failed',str(error),obs)
+                retained=carry['retained'];settled=carry['settled']
+            else:
+                retained=visual['raised'] if visual is not None else obs['bilateral'] and obs['stance_clear'] and obs['clearance']>=.05
+                settled=self._hold_metric(obs['time'])['ready']
             if not retained:
                 return self._finish('failed','hold_contact_or_clearance_lost',obs)
             # Require one observed second even for a shorter requested dwell.
-            if elapsed>=max(1.,self.duration) and self._hold_metric(obs['time'])['ready']:
+            if elapsed>=max(1.,self.duration) and settled:
                 return self._finish('completed','hold_verified',obs)
             if elapsed>max(1.,self.duration)+2:return self._finish('failed','hold_did_not_settle',obs)
         elif self.phase=='lift':

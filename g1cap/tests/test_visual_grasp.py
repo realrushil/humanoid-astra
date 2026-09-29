@@ -6,6 +6,38 @@ except ImportError:
 
 @unittest.skipIf(np is None,'NumPy unavailable')
 class VisualGraspTests(unittest.TestCase):
+    def test_source_clearance_uses_lower_bound_but_nominal_motion_rates(self):
+        from g1cap.visual_grasp import VisualGraspWindow
+        x=VisualGraspWindow()
+        for i in range(11):
+            s=self.sample(i*.1,gap=.08)
+            s.update(gap_reference='source_height_plane',gap_error_m=.011 if i%2 else .02)
+            r=x.add(s)
+        self.assertTrue(r['ready'])
+        self.assertAlmostEqual(r['gap_m'],.06)
+        self.assertAlmostEqual(r['gap_estimate_m'],.08)
+        self.assertAlmostEqual(r['gap_error_m'],.02)
+        self.assertEqual(r['gap_semantics'],'conditional_lower_bound')
+        self.assertAlmostEqual(r['max_gap_speed_m_s'],0.)
+        low=self.sample(1.1,gap=.064)
+        low.update(gap_reference='source_height_plane',gap_error_m=.011)
+        r=x.add(low)
+        self.assertFalse(r['raised']);self.assertFalse(r['ready'])
+        self.assertAlmostEqual(r['gap_m'],.053)
+
+    def test_invalid_source_uncertainty_clears_temporal_evidence(self):
+        from g1cap.visual_grasp import VisualGraspWindow
+        for error in (None,-.001,float('nan'),float('inf'),True,'0.01'):
+            with self.subTest(error=error):
+                x=VisualGraspWindow()
+                for i in range(11):x.add(self.sample(i*.1))
+                sample=self.sample(1.1);sample['gap_reference']='source_height_plane'
+                if error is not None:sample['gap_error_m']=error
+                r=x.add(sample)
+                self.assertEqual(r['status'],'unavailable')
+                self.assertEqual(r['reason'],'invalid_clearance_uncertainty')
+                self.assertEqual(len(x.samples),0)
+
     def test_settled_retention_does_not_require_raised_clearance(self):
         from g1cap.visual_grasp import VisualGraspWindow
         x=VisualGraspWindow()

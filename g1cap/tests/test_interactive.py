@@ -1,6 +1,6 @@
 """Check the information passed to the coding agent, separate from the scorer."""
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import tempfile
 import unittest
 
@@ -8,6 +8,27 @@ from g1cap import interactive
 
 
 class InteractiveTests(unittest.TestCase):
+    def test_ordered_reach_video_uses_the_staged_session_source(self):
+        with tempfile.TemporaryDirectory() as folder:
+            remote = interactive.RemoteSession.__new__(interactive.RemoteSession)
+            remote.recipe = {'task': 'ordered_reach', 'deadline': 180}
+            remote.arena = False
+            remote.root = PurePosixPath('/remote/g1')
+            remote.remote = PurePosixPath('/remote/g1/runs/episode')
+            remote.source_overlay = PurePosixPath('/remote/g1/runs/episode.source-overlay')
+            remote.output = Path(folder)
+            remote.log = None
+            remote._request_shutdown = lambda: None
+            remote._collect_artifacts = lambda: None
+            commands = []
+            remote._ssh = lambda command, timeout=20: commands.append(command)
+            remote.close()
+            self.assertEqual(len(commands), 1)
+            self.assertTrue(commands[0].startswith('cd /tmp && '))
+            self.assertIn('PYTHONPATH=', commands[0])
+            self.assertIn(str(remote.source_overlay), commands[0])
+            self.assertIn('g1cap.session_video', commands[0])
+
     def test_snapshot_service_publishes_aligned_images_once_without_stepping(self):
         from g1cap import arena_session_runtime as runtime
         from test_visual_observation import snapshot_fixture
@@ -69,7 +90,7 @@ class InteractiveTests(unittest.TestCase):
             self.assertEqual(agent.requests[1]['observation']['step'],12)
 
     def test_feedback_retains_execution_without_evaluator_metrics(self):
-        status={'task':{'backend':'arena'},'observation':{'session_id':'s','time':2.},
+        status={'task':{'backend':'arena','observation_mode':'sensor_state_v2'},'observation':{'session_id':'s','time':2.},
                 'metrics':{'private_evaluator_sentinel':True}}
         result={'index':0,'execution':{'status':'completed','stdout':'observed'},
                 'tools':[{'method':'hold_box','result':{'status':'completed'}}],
@@ -77,9 +98,38 @@ class InteractiveTests(unittest.TestCase):
         feedback=interactive.agent_feedback(result,status)
         request=interactive.generation_request(status,'previous source',[feedback])
         self.assertNotIn('private_evaluator_sentinel',json.dumps(request))
-        self.assertEqual(request['feedback'][0]['tools'],result['tools'])
+        self.assertEqual(request['feedback'][0]['tools'],[{'method':'hold_box','status':'completed',
+                                                         'reason':None,'advice':{}}])
         self.assertEqual(request['previous_source'],'previous source')
         self.assertEqual(feedback['start_observation']['time'],1.)
+        self.assertEqual(feedback['end_observation']['time'],2.)
+        self.assertNotIn('current_observation',feedback)
+
+    def test_feedback_keeps_tool_arguments_and_advice_without_repeating_observations(self):
+        status={'task':{'backend':'arena','observation_mode':'sensor_state_v2'},'observation':{'time':20.}}
+        result={'index':1,'execution':{'status':'completed'},
+                'tools':[{'method':'place_box','args':{'surface_id':'destination'},
+                          'result':{'status':'failed','reason':'box_not_well_inside_surface',
+                                    'advice':{'suggest':'move sideways','view_margins_m':{'left':0.2}},
+                                    'observation':{'time':19.,'large_sensor_packet':'x'*1000}}}],
+                'start_observation':{'time':18.},'end_observation':{'time':20.}}
+        feedback=interactive.agent_feedback(result,status)
+        self.assertEqual(feedback['tools'],[{
+            'method':'place_box','args':{'surface_id':'destination'},'status':'failed',
+            'reason':'box_not_well_inside_surface',
+            'advice':{'suggest':'move sideways','view_margins_m':{'left':0.2}}}])
+        self.assertEqual(feedback['start_observation'],{'time':18.})
+        self.assertEqual(feedback['end_observation'],{'time':20.})
+
+    def test_legacy_track_keeps_full_tool_observations(self):
+        status={'task':{'backend':'arena','observation_mode':'sensor_estimates_v1'},
+                'observation':{'time':2.}}
+        tools=[{'method':'hold_box','result':{'status':'completed',
+                                           'observation':{'time':1.5}}}]
+        result={'index':0,'execution':{'status':'completed'},'tools':tools}
+        feedback=interactive.agent_feedback(result,status)
+        self.assertEqual(feedback['tools'],tools)
+        self.assertEqual(feedback['current_observation'],{'time':2.})
 
     def test_two_rounds_preserve_prior_code_and_report_score_separately(self):
         class Remote:

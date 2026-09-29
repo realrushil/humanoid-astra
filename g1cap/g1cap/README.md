@@ -1,6 +1,16 @@
 # Implementation reading guide
 
-Start at the [project README](../README.md) for capabilities and commands. The main controller source is unchanged from the CAP snapshot; the sharing cleanup reorganizes the delivery, documentation and installation metadata.
+## Current `sensor_state_v2` flow
+
+Read this section first for the refreshed source. `interactive.py` preserves one physical episode across programs, while `workspace_agent.py` provides the bounded coding workspace and the [v2 tool contract](tool_docs/arena_v2.md). `arena_session_runtime.py` routes requests to one physics owner. In `arena_world.py`, `sensor_state.py` combines encoder/IMU odometry with camera-time box and table estimates from `box_tracker.py`; `control_v2.py` dispatches bounded grasp, walk, approach and place skills. `arena_public.py` filters the agent view, and `arena_task.py` scores separately with simulator truth.
+
+V2 positions are estimated in an odometry frame; table patches are incomplete camera observations. Its reported map-motion uncertainty does not cover the full box or table extent. The present code is a simulation development candidate, with pickup reliability and full sensor-based transfer still open.
+
+For SONIC, follow `session_runtime.py`, `session_tools.py`, `sonic_runtime.py`, then `toolkit/`. Workstation, ordered-reach and mobility programs preserve an episode across revisions. SONIC observations include explicitly labeled simulator values; they are not a deployed sensor interface.
+
+## Earlier tracks
+
+Start at the [project README](../README.md) for capabilities and commands. The original sharing cleanup reorganized delivery and metadata; this refresh also includes newer CAP implementation and tests.
 
 ## Read in this order
 

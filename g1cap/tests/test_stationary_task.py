@@ -7,7 +7,8 @@ def state(t, **changes):
                backend_ok=True, dds_domain=1, dds_interface='lo', no_support=True,
                pelvis_position=[0.,0.,.7], planar_velocity=[0.,0.], yaw_rate=0., tilt=0.,
                right_wrist_position=[.3,-.2,.9], right_wrist_velocity_world=[0.,0.,0.],
-               foot_normal_forces={'left':100.,'right':100.}, forbidden_contacts=[])
+               foot_normal_forces={'left':100.,'right':100.}, forbidden_contacts=[],
+               first_forbidden_contact=None)
     raw.update(changes)
     return raw
 
@@ -42,6 +43,17 @@ class StationaryTaskTests(unittest.TestCase):
             self.assertEqual(evaluator.update(state(.1, **bad)), reason)
         evaluator = self.evaluator()
         self.assertEqual(evaluator.update(state(.3)), 'state_gap')
+
+    def test_latched_transient_contact_ends_episode_after_live_contact_disappears(self):
+        evaluator = self.evaluator()
+        contact = dict(body1='left_ankle_roll_link', body2='blue_workstation',
+                       normal_force=140.8, distance=-.0003, self_contact=False)
+        latched = dict(sim_time=.075, contact=contact)
+        self.assertEqual(evaluator.update(state(.1, forbidden_contacts=[],
+                                                first_forbidden_contact=latched)),
+                         'forbidden_contact')
+        self.assertEqual(evaluator.update(state(.2, first_forbidden_contact=latched)),
+                         'forbidden_contact')
 
     def test_support_loss_never_earns_success(self):
         evaluator = self.evaluator()

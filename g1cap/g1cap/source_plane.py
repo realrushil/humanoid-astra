@@ -100,10 +100,10 @@ class SourcePlane:
         normal = camera[:3, :3] @ result['normal_camera']
         self.plane = normal, result['offset_m'] - normal @ camera[:3, 3]
         self.initialized = True
-        # A bounded tabletop fit can remain useful for a particular arm path
-        # even when its box-height query is too imprecise. Keep the uncertainty
-        # with that evidence; do not label the failed height query available.
+        # Preserve the nominal plane for geometric queries. Carry consumers
+        # subtract this conditional query error rather than treating a fixed
+        # precision cutoff as loss of the grasp. Initial association above
+        # remains strict; missing/ambiguous geometry is never cached as fresh.
+        result['gap_error_m']=float(result['prediction_quality']['height_perturbation_m'])
         self.geometry = dict(result,observed_at_s=time_s,height_reference_only=False)
-        if result['prediction_quality']['height_perturbation_m'] > .01:
-            return dict(unavailable,reason='source_height_precision_insufficient')
         return result

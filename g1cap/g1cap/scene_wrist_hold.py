@@ -14,9 +14,10 @@ from .scene_motion import _rigid
 
 
 class SceneWristHold:
-    def __init__(self,model,joint_names,packet,motion,reference,*,frame_key='body_in_segment'):
+    def __init__(self,model,joint_names,packet,motion,reference,*,frame_key='body_in_segment',rate_constrained=False):
         if frame_key not in ('body_in_segment','body_in_control_frame'):
             raise ValueError('unsupported wrist control frame')
+        self.rate_constrained=rate_constrained
         self.frame_key=frame_key
         self.model=model;self.names=list(joint_names)
         self.arm_names=[n for n in self.names if any(p in n for p in ('shoulder','elbow','wrist'))]
@@ -34,6 +35,7 @@ class SceneWristHold:
         self.heading_anchors=None
         self.vertical_lift_m=0.
         self.reference=self.action(reference);self.goal=self.reference.copy()
+        self.last_command=self.reference.copy()
         self.preload=self.reference[self.action_ids]-self.initial
         self.lo=np.maximum(model.lowerPositionLimit[self.ids],model.lowerPositionLimit[self.ids]-self.preload)
         self.hi=np.minimum(model.upperPositionLimit[self.ids],model.upperPositionLimit[self.ids]-self.preload)
@@ -124,8 +126,24 @@ class SceneWristHold:
                 error.extend(actual.translation-target.translation)
                 error.extend(.1*pin.log3(target.rotation.T@actual.rotation))
             return np.r_[error,1e-4*(arms-self.initial)]
-        result=least_squares(residual,np.clip(self.solution,self.lo+1e-8,self.hi-1e-8),
-            bounds=(self.lo,self.hi),max_nfev=80,ftol=1e-10,xtol=1e-10,gtol=1e-10)
+        # Search inside the same per-grasp adjustment envelope checked below.
+        # Otherwise a redundant arm can have a feasible wrist pose in bounds
+        # while the unconstrained optimum is rejected afterward. Keep the
+        # original anchor/preload; do not renew the budget on each update.
+        # One inward float step avoids rounding a boundary beyond 0.35 rad.
+        lo=np.maximum(self.lo,np.nextafter(self.initial-.35,self.initial))
+        hi=np.minimum(self.hi,np.nextafter(self.initial+.35,self.initial))
+        if self.rate_constrained:
+            # Intersect the fixed anchor bounds with the actual sent reference's
+            # next 20 ms command envelope. A pose-perfect but unreachable target
+            # must not be validated and then distorted by downstream slew limiting.
+            dt=t-self.commanded_at
+            if not 0<dt<=.020001:raise ValueError('scene_wrist_command_time_gap')
+            previous=self.last_command[self.action_ids]-self.preload
+            lo=np.maximum(lo,previous-dt);hi=np.minimum(hi,previous+dt)
+            if np.any(lo>=hi):raise ValueError('scene_wrist_target_outside_envelope')
+        result=least_squares(residual,np.clip(self.solution,lo+1e-10,hi-1e-10),
+            bounds=(lo,hi),max_nfev=80,ftol=1e-10,xtol=1e-10,gtol=1e-10)
         q[self.ids]=result.x;current=self.poses(q)
         position=max(float(np.linalg.norm(a.translation-b.translation)) for a,b in zip(current,desired))
         angle=max(float(np.linalg.norm(pin.log3(b.rotation.T@a.rotation))) for a,b in zip(current,desired))
@@ -158,4 +176,5 @@ class SceneWristHold:
         # This 1 rad/s simulation limit is not hardware calibration.
         scale=min(1.,dt/max(float(np.max(np.abs(delta))),1e-12))
         output[self.action_ids]+=scale*delta;self.commanded_at=now_s
+        self.last_command=output.copy()
         return output.tolist()

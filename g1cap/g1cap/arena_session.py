@@ -27,20 +27,30 @@ def atomic_json(path,value):
 def session_limits(recipe):
     """Finite wall budgets shared by launcher, physics owner and worker client."""
     limits={k:recipe.get(k,v) for k,v in {'wall_timeout_s':900.,'worker_timeout_s':600.}.items()}
-    if any(isinstance(v,bool) or not isinstance(v,(int,float)) or not math.isfinite(v) or not 0<v<=3600 for v in limits.values()):
-        raise ValueError('Arena wall budgets must be finite seconds in(0,3600]')
+    if any(isinstance(v,bool) or not isinstance(v,(int,float)) or not math.isfinite(v) or not 0<v<=7200 for v in limits.values()):
+        raise ValueError('Arena wall budgets must be finite seconds in(0,7200]')
     if limits['worker_timeout_s']>limits['wall_timeout_s']:raise ValueError('worker budget exceeds episode wall budget')
     return limits
 
 
 class ArenaSession:
-    def __init__(self,control,task,output,*,max_rounds=2,worker_timeout=600.,executor=execute_policy,sensor_observation=None,controller_observation=None):
+    def __init__(self,control,task,output,*,max_rounds=2,worker_timeout=600.,executor=execute_policy,sensor_observation=None,controller_observation=None,camera_observation=None,tools=None):
         self.control,self.task=control,deepcopy(task)
+        # v2 passes its own {tool: [positional argument names]}; results are
+        # already sensor-derived, so reasons are not remapped.
+        self.tools=tools
         self.sensor_observation=sensor_observation
         self.controller_observation=controller_observation
+        self.camera_observation=camera_observation
+        self.camera_snapshot={}
         self.control_snapshot={}
         self.public_snapshot={}
-        if sensor_observation is not None:
+        if tools is not None:
+            from .arena_public import selected
+            self.task=selected(task,('backend','object_id','instruction','task_kind','surface_id','deadline_s',
+                'minimum_travel_m','wall_timeout_s','worker_timeout_s'))
+            self.task.update(observation_mode='sensor_state_v2',control_track='sensor_state_v2',available_tools=sorted(tools))
+        elif sensor_observation is not None:
             from .arena_public import public_task
             self.task=public_task(task,sensor_control=controller_observation is not None)
         self.output=Path(output)
@@ -87,12 +97,18 @@ class ArenaSession:
                         terminal_reason=self.public_terminal_reason())
 
     def _resolve(self,ticket,result):
-        if self.sensor_observation is not None:
+        if self.tools is not None:
+            result=dict(status=result['status'],reason=result.get('reason'),advice=result.get('advice',{}),
+                        observation=self.observe())
+        elif self.sensor_observation is not None:
             from .arena_public import public_reason
             result=dict(status=result['status'],reason=public_reason(result.get('reason')),
                         observation=self.observe())
         ticket['result']=deepcopy(result)
-        self.tool_results.append(dict(round_id=ticket['round_id'],method=ticket['method'],result=deepcopy(result)))
+        record=dict(round_id=ticket['round_id'],method=ticket['method'],result=deepcopy(result))
+        if self.tools is not None:
+            record['args']=deepcopy(ticket['args'])
+        self.tool_results.append(record)
         self.trace.write(json.dumps(dict(type='tool_result',round_id=ticket['round_id'],
             method=ticket['method'],result=result,sim_time=self.snapshot.get('time')),allow_nan=False)+'\n')
         self.trace.flush()
@@ -101,16 +117,36 @@ class ArenaSession:
     def dispatch(self,method,args,kwargs,round_id):
         with self.lock:
             if round_id!=self.active_round:return dict(status='rejected',reason='stale_round')
-            if method=='observe':return self.observe()
+            if method=='observe':
+                result=self.observe()
+                # Retain exactly what generated stage verifiers consumed,
+                # including repeated frames, instead of reconstructing reads.
+                self.trace.write(json.dumps(dict(type='observation',round_id=round_id,
+                                                result=result),allow_nan=False)+'\n')
+                self.trace.flush()
+                return result
+            if method=='observe_camera' and self.sensor_observation is not None:
+                from .camera_rgb import CAMERAS,public_rgb
+                if len(args)>1 or set(kwargs)-{'camera'} or args and 'camera' in kwargs:
+                    return dict(status='rejected',reason='invalid_request')
+                camera=args[0] if args else kwargs.get('camera','head')
+                if camera not in CAMERAS:return dict(status='rejected',reason='unsupported_camera')
+                result=public_rgb(self.camera_snapshot.get(camera),self.snapshot.get('time',0.))
+                result.update(session_id=self.session_id,episode_status=self.public_terminal_reason() or 'running')
+                self.trace.write(json.dumps(dict(type='camera_observation',round_id=round_id,result=result))+'\n')
+                self.trace.flush()
+                return result
             if self.terminal_reason:return dict(status='cancelled',reason=self.public_terminal_reason())
             deadline=self.round_deadline
             if time.monotonic()>=deadline:
                 return dict(status='cancelled',reason='request_wall_timeout',observation=self.observe())
-        if self.sensor_observation is not None:
+        if self.tools is not None:
+            names=self.tools
+        elif self.sensor_observation is not None:
             from .arena_public import METHODS as sensor_methods
             if method not in sensor_methods:
                 return dict(status='rejected',reason='sensor_tool_unavailable')
-        names={'wait':['duration'],'pickup_box':['object_id'],'lift_supported_box':[],'raise_held_box':['clearance_m'],
+        if self.tools is None:names={'depart_source':['yaw_rad'],'wait':['duration'],'pickup_box':['object_id'],'lift_supported_box':[],'raise_held_box':['clearance_m'],
                'hold_box':['duration'],'return_box_to_source':[],'retreat_with_box':['distance_m'],
                'move_with_box':['distance_m'],'turn_with_box':['yaw_rad'],'place_box':['surface_id']}
         if method not in names or len(args)>len(names[method]):return dict(status='rejected',reason='invalid_request')
@@ -136,6 +172,8 @@ class ArenaSession:
             if self.sensor_observation is not None:
                 self.public_snapshot=deepcopy(self.sensor_observation(observation['time']))
                 self.public_snapshot['controller_phase']=self.control.phase
+            if self.camera_observation is not None:
+                self.camera_snapshot=deepcopy(self.camera_observation())
             self.received_at=time.monotonic()
         if self.control.terminal_reason:
             self.finish(self.control.terminal_reason)
@@ -190,7 +228,8 @@ class ArenaSession:
                 else:
                     execution=self.executor(source,self.task,round_id,self.dispatch,
                         wall_timeout=remaining,wall_deadline=deadline,max_requests=100,
-                        tools=sensor_methods if self.sensor_observation is not None else METHODS)
+                        tools=(frozenset(self.tools) if self.tools is not None else
+                               sensor_methods if self.sensor_observation is not None else METHODS))
             except Exception as error:execution=dict(status='worker_error',error=repr(error))
             with self.lock:
                 result=dict(index=index,round_id=round_id,session_id=self.session_id,

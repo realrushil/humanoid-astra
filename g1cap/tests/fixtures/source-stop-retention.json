@@ -1,0 +1,330 @@
+{
+  "packet": {
+    "version": 1,
+    "step": 1128,
+    "time_s": 22.56,
+    "joint_names": [
+      "left_hip_pitch_joint",
+      "left_hip_roll_joint",
+      "left_hip_yaw_joint",
+      "left_knee_joint",
+      "left_ankle_pitch_joint",
+      "left_ankle_roll_joint",
+      "right_hip_pitch_joint",
+      "right_hip_roll_joint",
+      "right_hip_yaw_joint",
+      "right_knee_joint",
+      "right_ankle_pitch_joint",
+      "right_ankle_roll_joint",
+      "waist_yaw_joint",
+      "waist_roll_joint",
+      "waist_pitch_joint",
+      "left_shoulder_pitch_joint",
+      "left_shoulder_roll_joint",
+      "left_shoulder_yaw_joint",
+      "left_elbow_joint",
+      "left_wrist_roll_joint",
+      "left_wrist_pitch_joint",
+      "left_wrist_yaw_joint",
+      "right_shoulder_pitch_joint",
+      "right_shoulder_roll_joint",
+      "right_shoulder_yaw_joint",
+      "right_elbow_joint",
+      "right_wrist_roll_joint",
+      "right_wrist_pitch_joint",
+      "right_wrist_yaw_joint"
+    ],
+    "q_rad": [
+      -0.37937498092651367,
+      0.057389188557863235,
+      0.009864394553005695,
+      0.7108911871910095,
+      -0.2839135229587555,
+      -0.017040373757481575,
+      -0.3532312512397766,
+      0.053154271095991135,
+      -0.013762694783508778,
+      0.7060389518737793,
+      -0.30556073784828186,
+      -0.0473409965634346,
+      -0.018427077680826187,
+      0.03636961057782173,
+      0.07808628678321838,
+      -0.4398916959762573,
+      0.09188064187765121,
+      0.14827020466327667,
+      -0.1306198239326477,
+      0.025813153013586998,
+      0.3060033321380615,
+      -0.04779936000704765,
+      -0.5832518935203552,
+      0.05936722084879875,
+      0.009330608882009983,
+      0.2695775330066681,
+      -0.15908850729465485,
+      -0.14194262027740479,
+      0.012103956192731857
+    ],
+    "dq_rad_s": [
+      -0.22686006128787994,
+      0.35303348302841187,
+      -0.23179557919502258,
+      0.13922935724258423,
+      -0.00023361871717497706,
+      -0.6240751147270203,
+      -0.03540610149502754,
+      0.3373737931251526,
+      -0.1979568600654602,
+      -0.2591668963432312,
+      0.19191275537014008,
+      -0.19039276242256165,
+      -0.022589148953557014,
+      0.06912319362163544,
+      0.19462993741035461,
+      0.11108110100030899,
+      0.03850524500012398,
+      0.19426845014095306,
+      -0.6416395902633667,
+      -0.12430228292942047,
+      0.39724013209342957,
+      -0.0477762334048748,
+      0.10296095907688141,
+      0.09461002051830292,
+      0.21242353320121765,
+      -0.8275122046470642,
+      -0.1583007574081421,
+      0.6057462692260742,
+      0.04643727093935013
+    ],
+    "tau_est_nm": [
+      0.01575911045074463,
+      -4.412096977233887,
+      3.4062037467956543,
+      -5.556880950927734,
+      0.0006174221634864807,
+      1.8408335447311401,
+      13.230462074279785,
+      -18.150596618652344,
+      6.58175802230835,
+      -17.409160614013672,
+      8.862059593200684,
+      1.1496505737304688,
+      2.9524073600769043,
+      -1.9272714853286743,
+      -15.570276260375977,
+      -6.733405113220215,
+      0.9177613854408264,
+      -1.5150508880615234,
+      -3.6389713287353516,
+      -0.06068384647369385,
+      -1.5413365364074707,
+      -0.7477713823318481,
+      -8.663466453552246,
+      2.3960695266723633,
+      3.148883819580078,
+      -3.513725757598877,
+      -0.30933859944343567,
+      -1.562605381011963,
+      1.1754311323165894
+    ],
+    "gyro_rad_s": [
+      -0.23372267186641693,
+      0.09661992639303207,
+      0.006380558013916016
+    ],
+    "specific_force_m_s2": [
+      0.5354390740394592,
+      -0.14867034554481506,
+      11.419425964355469
+    ]
+  },
+  "hands": {
+    "version": 1,
+    "model": "unitree_dex3_1",
+    "step": 1128,
+    "time_s": 22.56,
+    "joint_names": [
+      "left_hand_thumb_0_joint",
+      "left_hand_thumb_1_joint",
+      "left_hand_thumb_2_joint",
+      "left_hand_middle_0_joint",
+      "left_hand_middle_1_joint",
+      "left_hand_index_0_joint",
+      "left_hand_index_1_joint",
+      "right_hand_thumb_0_joint",
+      "right_hand_thumb_1_joint",
+      "right_hand_thumb_2_joint",
+      "right_hand_middle_0_joint",
+      "right_hand_middle_1_joint",
+      "right_hand_index_0_joint",
+      "right_hand_index_1_joint"
+    ],
+    "q_rad": [
+      -2.9852233183191856e-06,
+      0.0013432869454845786,
+      5.72005149024335e-07,
+      -0.002630030270665884,
+      -4.993443508283235e-05,
+      1.5080214854634733e-09,
+      -8.454651106148958e-05,
+      -2.8714932795992354e-06,
+      0.0020845707040280104,
+      -6.358305313369783e-07,
+      0.001693001133389771,
+      2.176381713070441e-05,
+      -1.3118873765094463e-09,
+      2.5284229195676744e-05
+    ]
+  },
+  "visual": {
+    "box": {
+      "status": "accepted",
+      "reason": "accepted",
+      "track_epoch": 1,
+      "observed_at_s": 22.56,
+      "center_camera_m": [
+        -0.05794142611203376,
+        -0.1567671022809288,
+        0.4625253675940439
+      ],
+      "axes_camera": [
+        [
+          -0.9898133294796613,
+          0.11312862108057035,
+          -0.086437768809597
+        ],
+        [
+          0.13900873591950386,
+          0.6367619977585708,
+          -0.7584264826260786
+        ],
+        [
+          -0.03075945582148243,
+          -0.7627162469116059,
+          -0.6460013797002596
+        ]
+      ],
+      "dimensions_m": [
+        0.19844592288276636,
+        0.19687497316368902,
+        0.2006458623222127
+      ],
+      "quality": {
+        "status": "full_rank_candidate",
+        "rms_m": 0.00054925812487611,
+        "constraint_rank": 6,
+        "relative_singular_values": [
+          1.0,
+          0.3936763799337147,
+          0.3236974670318474,
+          0.28941558644801224,
+          0.2588907935983612,
+          0.14929502161522626
+        ],
+        "face_rows": 1200,
+        "edge_points": 300,
+        "total_face_points": 1200
+      },
+      "age_s": 0.0,
+      "frame": "camera_optical_at_observation_time"
+    },
+    "floor": {
+      "status": "observed_candidate",
+      "normal_body": [
+        0.04650904165957003,
+        -0.004676702934588536,
+        0.9989069213363021
+      ],
+      "offset_m": 0.7495368730933103
+    },
+    "up_body": [
+      0.04169860885492745,
+      -0.006421980003959825,
+      0.9991095956862753
+    ]
+  },
+  "calibration": {
+    "parent_frame": "head_link",
+    "width": 640,
+    "height": 480,
+    "intrinsic": [
+      [
+        458.1245422363281,
+        0.0,
+        320.0
+      ],
+      [
+        0.0,
+        458.1245422363281,
+        240.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "offset_position_m": [
+      0.04485,
+      0.0,
+      0.35325
+    ],
+    "offset_quaternion_xyzw": [
+      -0.62721,
+      0.62721,
+      -0.32651,
+      0.32651
+    ],
+    "offset_convention": "ros",
+    "depth_kind": "distance_to_image_plane",
+    "depth_units": "metres",
+    "optical_axes": "x right, y down, z forward",
+    "invalid_depth": "NaN",
+    "frame_storage": "RGB PNG plus depth float32 NPY; no instance/semantic labels"
+  },
+  "action_joint_names": [
+    "left_hip_pitch_joint",
+    "right_hip_pitch_joint",
+    "waist_yaw_joint",
+    "left_hip_roll_joint",
+    "right_hip_roll_joint",
+    "waist_roll_joint",
+    "left_hip_yaw_joint",
+    "right_hip_yaw_joint",
+    "waist_pitch_joint",
+    "left_knee_joint",
+    "right_knee_joint",
+    "left_shoulder_pitch_joint",
+    "right_shoulder_pitch_joint",
+    "left_ankle_pitch_joint",
+    "right_ankle_pitch_joint",
+    "left_shoulder_roll_joint",
+    "right_shoulder_roll_joint",
+    "left_ankle_roll_joint",
+    "right_ankle_roll_joint",
+    "left_shoulder_yaw_joint",
+    "right_shoulder_yaw_joint",
+    "left_elbow_joint",
+    "right_elbow_joint",
+    "left_wrist_roll_joint",
+    "right_wrist_roll_joint",
+    "left_wrist_pitch_joint",
+    "right_wrist_pitch_joint",
+    "left_wrist_yaw_joint",
+    "right_wrist_yaw_joint",
+    "left_hand_index_0_joint",
+    "left_hand_middle_0_joint",
+    "left_hand_thumb_0_joint",
+    "right_hand_index_0_joint",
+    "right_hand_middle_0_joint",
+    "right_hand_thumb_0_joint",
+    "left_hand_index_1_joint",
+    "left_hand_middle_1_joint",
+    "left_hand_thumb_1_joint",
+    "right_hand_index_1_joint",
+    "right_hand_middle_1_joint",
+    "right_hand_thumb_1_joint",
+    "left_hand_thumb_2_joint",
+    "right_hand_thumb_2_joint"
+  ]
+}

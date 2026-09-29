@@ -95,3 +95,17 @@ class ArenaPublicTests(unittest.TestCase):
         stop['time_s']=.9
         value=sensor_observation(packet,{'status':'unavailable'},{'status':'unavailable'},None,loaded_stop=stop)
         self.assertEqual(value['loaded_stop'],dict(status='unavailable',reason='loaded_stop_status_stale'))
+
+    def test_retention_publication_requires_fresh_matching_box_and_strips_private(self):
+        from g1cap.arena_public import sensor_observation
+        packet=dict(time_s=1.,step=50)
+        box=dict(status='accepted',observed_at_s=1.,track_epoch=2)
+        retention=dict(status='available',time_s=1.,track_epoch=2,segment=1,retained=True,settled=True,
+            pickup_proven=False,private_contact=True,scene={'private_pose':999})
+        def snapshot():return sensor_observation(packet,box,{'status':'unavailable'},None,retention=retention)['retention']
+        self.assertTrue(snapshot()['retained']);self.assertFalse(snapshot()['pickup_proven'])
+        self.assertNotIn('private',json.dumps(snapshot()));self.assertNotIn('scene',snapshot())
+        for changed in ({'time_s':.8},{'time_s':1.1},{'track_epoch':3}):
+            original=dict(retention);retention.update(changed)
+            self.assertEqual(snapshot()['status'],'unavailable');retention.clear();retention.update(original)
+        box['status']='unavailable';self.assertEqual(snapshot()['status'],'unavailable')

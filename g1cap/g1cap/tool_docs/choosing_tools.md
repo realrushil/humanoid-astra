@@ -6,7 +6,7 @@ Use this guide before writing a tool sequence, then read the selected tools' con
 
 | Intended outcome | Current tools | What the program must supply or check |
 | --- | --- | --- |
-| Arrive at a base location | `walk_to`, optionally `turn_to` | A clear route inside the task workspace; current position, heading and task progress. The tool does not plan around furniture. |
+| Arrive at a base location | `walk_to`, optionally `turn_to` | A clear route inside the task workspace; current position, heading and task progress. `walk_to` commands no turn, so face a mostly lateral or rearward segment before walking. The tool does not plan around furniture. |
 | Stand at a different height | `set_posture`, `hold` | Reachable height and measured settling; this changes the arm reference context. |
 | Put one wrist at a point | `check_reach`, `reach_right` | A nearby collision-free world point. This interface does not control wrist orientation. |
 | Put both wrists at oriented poses | `check_hands`, `reach_hands` | Two nearby world wrist poses, current object geometry and a settled stance. Contact is forbidden. |

@@ -310,7 +310,7 @@ class SonicPublisher:
     """
 
     def __init__(self, repo, socket_path, port=5556, lease_s=.25, *, hand_posture='upstream_default',
-                 arm_posture='upstream_default'):
+                 arm_posture='upstream_default', history_limit=12000):
         if not isinstance(port, int) or isinstance(port, bool) or not 1024 <= port <= 65535:
             raise ValueError('loopback port must be an integer in [1024, 65535]')
         # Validate lease without loading transport dependencies.
@@ -333,7 +333,7 @@ class SonicPublisher:
         self._planner = None
         self._start_until = 0.
         self.published_messages = 0
-        self.history = SampleHistory()
+        self.history = SampleHistory(limit=history_limit)
         self.health_check = None
 
     def start(self, timeout=5.):

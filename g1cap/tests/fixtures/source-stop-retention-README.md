@@ -1,0 +1,3 @@
+This JSON retains only permitted sensor-derived data from view-search-01 step1128 (22.56s): body/Dex3 measurements, camera calibration, accepted RGB-D box pose, observed floor, IMU-derived up and action joint order. Source: runs/sensor-transfer-2026-09-19/view-search-01/session/artifacts/physics. No simulator object/contact state is included.
+
+The end-to-end test holds this configuration fixed, synthesizes a static planar floor and timestamps/zero acceleration, and supplies a synthetic front plane. It exercises measure→screen rejection/acceptance semantics, not fresh perception or physical stability.

@@ -73,6 +73,16 @@ class SensorCadenceTests(unittest.TestCase):
             self.assertEqual(metadata['native_camera_update_period_s'],.02)
             self.assertIn('zero added',metadata['rgbd_latency_assumption'])
 
+    def test_frames_can_stay_in_memory_only(self):
+        SensorRecorder=recorder_class()
+        source,model=native()
+        with tempfile.TemporaryDirectory() as root:
+            recorder=SensorRecorder(Path(root)/'sensor',source,model,rgbd_period_steps=2,save_frames=False)
+            recorder.capture(0,0.)
+            self.assertEqual(recorder.measurements()['rgbd']['step'],0)      # live frame still served
+            recorder.close()
+            self.assertEqual(sorted(p.suffix for p in (Path(root)/'sensor').iterdir()), ['.json','.jsonl','.jsonl'])
+
     def test_invalid_period_and_slow_native_camera_fail_before_output(self):
         SensorRecorder=recorder_class()
         source,model=native()

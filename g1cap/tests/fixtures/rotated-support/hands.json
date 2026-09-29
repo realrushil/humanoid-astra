@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "model": "unitree_dex3_1",
+  "step": 14,
+  "time_s": 0.28,
+  "joint_names": [
+    "left_hand_thumb_0_joint",
+    "left_hand_thumb_1_joint",
+    "left_hand_thumb_2_joint",
+    "left_hand_middle_0_joint",
+    "left_hand_middle_1_joint",
+    "left_hand_index_0_joint",
+    "left_hand_index_1_joint",
+    "right_hand_thumb_0_joint",
+    "right_hand_thumb_1_joint",
+    "right_hand_thumb_2_joint",
+    "right_hand_middle_0_joint",
+    "right_hand_middle_1_joint",
+    "right_hand_index_0_joint",
+    "right_hand_index_1_joint"
+  ],
+  "q_rad": [
+    -3.0772513426313708e-09,
+    5.4954081861069426e-05,
+    1.4597487663081665e-09,
+    -7.543247875219095e-07,
+    -3.309389429162479e-10,
+    -7.369671948254108e-07,
+    -3.245706203802712e-10,
+    -9.035441728144633e-09,
+    -5.078560934634879e-05,
+    -1.9670480799760526e-09,
+    -2.0604587480654857e-11,
+    -1.609679750602666e-11,
+    3.8768610544082094e-10,
+    3.3143765509890954e-10
+  ]
+}

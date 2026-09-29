@@ -17,7 +17,7 @@ These are **ten instances of one task family**, not ten distinct manipulation sk
 | [09-heavier-box.json](09-heavier-box.json) | Same20cm cube, mass0.5kg | Validation |
 | [10-combined.json](10-combined.json) |24×24×20cm/0.5kg parcel, shifted/rotated start, shifted/higher/smaller destination | Validation |
 
-Each recipe is complete and uses the existing Arena execution path. Configuration validity is not proof of controller capability. Per-case status, all attempts and the schematic video tour are in the original CAP archive `runs/box-transfer-benchmark-001/report.md` (not bundled; see the shared project README for outcome limits).
+Each recipe is complete and uses the existing Arena execution path. Configuration validity is not proof of controller capability. Per-case status, all attempts and the schematic video tour are in [the evidence report](../../runs/box-transfer-benchmark-001/report.md).
 
 ## Geometry and information
 

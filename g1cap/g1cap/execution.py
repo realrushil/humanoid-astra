@@ -13,6 +13,26 @@ import time
 TOOLS = frozenset({'observe', 'observe_scene', 'check_reach', 'check_hands', 'reach_hands', 'move_base', 'stop', 'hold', 'walk_to', 'turn_to', 'reach_right', 'set_posture', 'sonic_motion'})
 
 
+def _kill_worker_group(proc):
+    """Stop the sandboxed worker even if macOS denies its group signal.
+
+    The macOS seatbelt denies fork, so direct-child kill is a bounded fallback.
+    A failed direct kill still propagates instead of reporting policy success.
+    """
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return 'group_absent'
+    except PermissionError:
+        if proc.poll() is not None:
+            return 'already_exited'
+        if sys.platform != 'darwin':
+            raise
+        proc.kill()
+        return 'direct_child_kill'
+    return 'group_kill'
+
+
 def sandbox_command():
     python = str(Path(sys.executable).resolve())
     worker = str(Path(__file__).with_name('worker.py').resolve())
@@ -218,10 +238,9 @@ def execute_policy(source, task, episode_id, dispatch, *, wall_timeout=10.0,
         result.update(status='backend_error', error=f'{type(error).__name__}: {error}')
     finally:
         if proc is not None:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+            cleanup = _kill_worker_group(proc)
+            if cleanup == 'direct_child_kill':
+                result['cleanup_fallback'] = cleanup
             proc.wait()
             result['returncode'] = proc.returncode
             for pipe in [proc.stdin, proc.stdout, proc.stderr]:

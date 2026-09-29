@@ -61,6 +61,15 @@ class ArenaSessionTests(unittest.TestCase):
         self.assertAlmostEqual(second['execution']['seen']['box_pos'][0],.7)
         self.assertAlmostEqual(self.control.box_x,.8)
         self.assertEqual(self.session.rounds[0]['session_id'],second['session_id'])
+
+    def test_direct_observation_reply_is_retained_for_verifier_audit(self):
+        import json
+        self.session.submit('observe then hold');self.finish_round(1)
+        rows=[json.loads(line) for line in (Path(self.folder.name)/'tool-trace.jsonl').read_text().splitlines()]
+        observations=[row for row in rows if row['type']=='observation']
+        self.assertEqual(len(observations),1)
+        self.assertEqual(observations[0]['result'],self.session.rounds[0]['execution']['seen'])
+        self.assertEqual(observations[0]['round_id'],self.session.rounds[0]['round_id'])
     def test_supported_lift_uses_existing_request_queue(self):
         def executor(source,task,round_id,dispatch,**options):
             self.assertIn('lift_supported_box',options['tools'])
@@ -77,6 +86,14 @@ class ArenaSessionTests(unittest.TestCase):
         self.session.submit('wait');self.finish_round(1)
         self.assertEqual(self.session.rounds[0]['execution']['status'],'completed')
         self.assertEqual(self.session.tool_results[-1]['method'],'wait')
+    def test_v2_round_record_retains_named_tool_arguments(self):
+        self.session.tools={'hold_box':['duration']}
+        def executor(source,task,round_id,dispatch,**options):
+            return dispatch('hold_box',[1.5],{},round_id)
+        self.session.executor=executor
+        self.session.submit('hold');self.finish_round(1)
+        self.assertEqual(self.session.tool_results[-1]['args'],{'duration':1.5})
+        self.assertEqual(self.session.rounds[0]['tools'][-1]['args'],{'duration':1.5})
     def test_transfer_methods_use_existing_worker_queue(self):
         def executor(source,task,round_id,dispatch,**options):
             for method,args in [('turn_with_box',[-.5]),('move_with_box',[.3]),('place_box',['destination'])]:

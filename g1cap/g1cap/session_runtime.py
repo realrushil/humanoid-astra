@@ -26,6 +26,14 @@ def task_from_recipe(recipe):
                             final_yaw=recipe.get('final_yaw'),deadline=recipe.get('deadline',180.),
                             corridor_half_width=recipe.get('corridor_half_width',.6),
                             start_world_xy=tuple(recipe.get('start_world_xy',(0.,0.))))
+    if name=='ordered_reach':
+        if set(recipe)-{'task','target_ids','deadline','hand_posture','arm_posture','layout_offset_xy'}:
+            raise ValueError('unknown ordered reach recipe field')
+        from .scene import workstation_scene
+        from .ordered_reach_task import OrderedReachTask
+        return OrderedReachTask(workstation_scene(recipe.get('layout_offset_xy',(0.,0.))),
+                                target_ids=tuple(recipe.get('target_ids',('blue_lower','blue_upper'))),
+                                deadline=recipe.get('deadline',180.))
     if name!='workstation_reach':
         raise ValueError(f'unknown session task: {name}')
     if set(recipe)-{'task','target_id','deadline','hand_posture','arm_posture','layout_offset_xy'}:

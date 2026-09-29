@@ -59,7 +59,9 @@ def state_fault(raw):
         return 'invalid_state'
     if not isinstance(raw.get('forbidden_contacts'), list):
         return 'invalid_state'
-    if raw['forbidden_contacts']:
+    if 'first_forbidden_contact' not in raw:
+        return 'invalid_state'
+    if raw['forbidden_contacts'] or raw['first_forbidden_contact'] is not None:
         return 'forbidden_contact'
     # Absolute development floor plus contact and tilt checks allow intended
     # lowering without disabling collapse detection or using initial-height ratio.

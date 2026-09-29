@@ -5,6 +5,7 @@ import json
 from pathlib import Path, PurePosixPath
 import shlex
 import subprocess
+import tarfile
 import time
 import uuid
 
@@ -12,6 +13,7 @@ from .runner import write_json
 from .session_tools import session_api
 from .workspace_agent import WorkspaceCodexAgent
 from .visual_observation import validate_snapshot
+from .source_overlay import stage_overlay
 
 
 class RemoteSession:
@@ -44,8 +46,11 @@ class RemoteSession:
         # Keep the overlay beside (rather than inside) the launcher output;
         # arena_launch owns creation of the output directory itself.
         overlay=self.remote.with_name(self.remote.name+'.source-overlay')
+        local=self.output/'source-overlay'
+        stage_overlay(local)
         self._ssh('mkdir -p '+shlex.quote(str(overlay)),timeout=30)
-        subprocess.run(['scp','-q','-r','g1cap',f'{self.host}:{overlay}/'],check=True,timeout=90)
+        subprocess.run(['scp','-q','-r',str(local/'g1cap'),str(local/'source-manifest.json'),
+                        f'{self.host}:{overlay}/'],check=True,timeout=90)
         return overlay
 
     def _json(self,path,timeout=20):
@@ -155,40 +160,78 @@ class RemoteSession:
             time.sleep(.1)
         raise TimeoutError('camera snapshot exceeded 30 seconds')
 
+    def _collect_artifacts(self):
+        """Stream one compressed archive; collection never reruns physics.
+
+        Many small RGB/depth files exceeded the old 90-second SCP deadline.
+        Keep transfer bounded separately and retain even a partial archive on
+        failure. The data filter prevents paths/links escaping the output.
+        Per-step camera frames (physics/sensors, ~5 GB per trial) stay on the
+        remote host: offline analysis uses the logs and videos, and the frames
+        plus a kept archive filled ~700 GB locally. The archive is deleted once
+        extracted, since the extracted files are the same data.
+        """
+        archive=self.output/'evidence.tar.gz'
+        command='tar -czf - -C '+shlex.quote(str(self.remote))+' --exclude=./physics/sensors .'
+        with archive.open('wb') as stream:
+            subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=10',
+                            self.host,command],stdout=stream,check=True,timeout=600)
+        with tarfile.open(archive,'r:gz') as bundle:
+            bundle.extractall(self.output/'artifacts',filter='data')
+        archive.unlink()
+
+    def _request_shutdown(self):
+        """Local SSH exit is not evidence that remote owned children stopped."""
+        if self.process is None and self.session_id is None:return
+        self._ssh('mkdir -p '+shlex.quote(str(self.inbox))+' && touch '+shlex.quote(str(self.inbox/'stop')))
+        if self.process is not None and self.process.poll() is None:
+            try:self.process.wait(timeout=100)
+            except subprocess.TimeoutExpired:
+                self.process.terminate();self.process.wait(timeout=10)
+        if self.arena:
+            deadline=time.monotonic()+100
+            while time.monotonic()<deadline:
+                cleanup=self._json(self.remote/'cleanup.json',timeout=min(20,max(.1,deadline-time.monotonic())))
+                if cleanup and cleanup.get('owned_groups_stopped') is True:return
+                time.sleep(.5)
+            raise TimeoutError('remote owned-process cleanup was not confirmed')
+
     def close(self):
-        try:
-            if self.process is not None and self.process.poll() is None:
-                self._ssh('mkdir -p '+shlex.quote(str(self.inbox))+' && touch '+shlex.quote(str(self.inbox/'stop')))
-                # An active tool is bounded; SIGTERM remains a final owned-process fallback.
-                try: self.process.wait(timeout=100)
-                except subprocess.TimeoutExpired:
-                    self.process.terminate()
-                    self.process.wait(timeout=10)
+        try:self._request_shutdown()
+        except Exception as error:
+            write_json(self.output/'shutdown_error.json',dict(error=repr(error),remote=str(self.remote),
+                collection_skipped=True,physics_state_unverified=True))
+            raise
         finally:
-            if self.log is not None: self.log.close()
-            if self.recipe.get('task') in ('workstation_reach','mobility'):
-                command = [str(self.root/'.venv-sonic/bin/python'), '-u', '-m',
-                           'g1cap.session_video', str(self.remote)]
-                try:
-                    print('Rendering setup, full task and task overview on CPU...', flush=True)
-                    # Longer benchmarks produce setup plus two complete task
-                    # views. Keep export bounded, separately from physics time.
-                    render_timeout=max(600,6*float(self.recipe.get('deadline',180)))
-                    self._ssh('cd '+shlex.quote(str(self.root))+' && '+shlex.join(command), timeout=render_timeout)
-                except Exception as error:
-                    # Rendering must never discard the source/physics evidence.
-                    write_json(self.output/'video_error.json', dict(error=str(error)))
-                    print('Video export failed; recorded evidence will still be copied:', error, flush=True)
-            subprocess.run(['scp','-q','-r',f'{self.host}:{self.remote}',str(self.output/'artifacts')],
-                           check=True,timeout=90)
-            if self.arena:
-                try:
-                    from .arena_video import render_session
-                    print('Rendering complete Arena recording on CPU...',flush=True)
-                    render_session(self.output/'artifacts',timeout=max(600,6*float(self.recipe.get('deadline',180))))
-                except Exception as error:
-                    write_json(self.output/'video_error.json',dict(error=str(error)))
-                    print('Arena video export failed; raw recordings retained:',error,flush=True)
+            if self.log is not None:self.log.close()
+        if self.recipe.get('task') in ('workstation_reach','ordered_reach','mobility'):
+            command = [str(self.root/'.venv-sonic/bin/python'), '-u', '-m',
+                       'g1cap.session_video', str(self.remote)]
+            try:
+                print('Rendering setup, full task and task overview on CPU...', flush=True)
+                # Longer benchmarks produce setup plus two complete task
+                # views. Keep export bounded, separately from physics time.
+                render_timeout=max(600,6*float(self.recipe.get('deadline',180)))
+                overlay=getattr(self,'source_overlay',None)
+                # Python -m puts the current directory ahead of PYTHONPATH.
+                # Start outside the installed source tree when using an overlay.
+                shell='cd '+shlex.quote('/tmp' if overlay is not None else str(self.root))+' && '
+                if overlay is not None:
+                    shell+='PYTHONPATH='+shlex.quote(str(overlay)+':'+str(self.root))+' '
+                self._ssh(shell+shlex.join(command), timeout=render_timeout)
+            except Exception as error:
+                # Rendering must never discard the source/physics evidence.
+                write_json(self.output/'video_error.json', dict(error=str(error)))
+                print('Video export failed; recorded evidence will still be copied:', error, flush=True)
+        self._collect_artifacts()
+        if self.arena:
+            try:
+                from .arena_video import render_session
+                print('Rendering complete Arena recording on CPU...',flush=True)
+                render_session(self.output/'artifacts',timeout=max(600,6*float(self.recipe.get('deadline',180))))
+            except Exception as error:
+                write_json(self.output/'video_error.json',dict(error=str(error)))
+                print('Arena video export failed; raw recordings retained:',error,flush=True)
 
 
 def compact_observation(status):
@@ -205,7 +248,8 @@ def compact_observation(status):
 def generation_request(status,previous_source,feedback,*,visual_observations=None):
     task=status['task']
     arena=task.get('backend')=='arena'
-    document='arena_sensor.md' if task.get('observation_mode')=='sensor_estimates_v1' else 'arena_box.md'
+    mode=task.get('observation_mode')
+    document='arena_v2.md' if mode=='sensor_state_v2' else 'arena_sensor.md' if mode=='sensor_estimates_v1' else 'arena_box.md'
     api=(Path(__file__).parent/'tool_docs'/document).read_text() if arena else session_api(task)
     request=dict(protocol='persistent_session',
                 instruction=task.get('instruction','Approach the fixed location and reach the wrist target at the requested height.'),
@@ -216,10 +260,20 @@ def generation_request(status,previous_source,feedback,*,visual_observations=Non
 
 
 def agent_feedback(result,status):
-    """Execution evidence is public; independent benchmark metrics stay in reports."""
+    """Compact v2 tool outcomes; leave older track feedback contracts intact."""
     execution={**result['execution'],'stderr':result['execution'].get('stderr','')[-2500:]}
-    feedback=dict(round=result['index'],execution=execution,tools=deepcopy(result.get('tools',[])),
-                  current_observation=compact_observation(status))
+    if status.get('task',{}).get('observation_mode')=='sensor_state_v2':
+        tools=[]
+        for call in result.get('tools',[]):
+            outcome=call['result']
+            item={'method':call['method'],'status':outcome.get('status'),
+                  'reason':outcome.get('reason'),'advice':deepcopy(outcome.get('advice',{}))}
+            if 'args' in call:item['args']=deepcopy(call['args'])
+            tools.append(item)
+        feedback=dict(round=result['index'],execution=execution,tools=tools)
+    else:
+        feedback=dict(round=result['index'],execution=execution,
+                      tools=deepcopy(result.get('tools',[])),current_observation=compact_observation(status))
     for key in ('start_observation','end_observation'):
         if key in result:feedback[key]=deepcopy(result[key])
     return feedback
@@ -267,6 +321,11 @@ def run_interactive(remote,output,*,agent=None,policies=(),between_rounds=0.):
             feedback.append(agent_feedback(result,status))
             print('Round',index,result['execution']['status'],status['metrics'],status['terminal_reason'],flush=True)
             if status['terminal_reason']: break
+            # The evaluator ends a finished episode; the agent is told nothing beyond
+            # the episode ending, and no further program is generated.
+            if (status.get('metrics') or {}).get('success'):
+                print('Task complete by independent scoring; ending episode.',flush=True)
+                break
             if between_rounds: time.sleep(between_rounds)
         report['final_status']=remote.status()
     except Exception as error:
@@ -295,6 +354,7 @@ def main():
     parser.add_argument('--vision-mode',choices=('off','direct','structured'),default='off')
     parser.add_argument('--policy',type=Path,action='append',default=[])
     parser.add_argument('--between-rounds',type=float,default=0.)
+    parser.add_argument('--port',type=int,default=15576,help='remote model-server port (distinct per concurrent session)')
     args=parser.parse_args()
     if not 1<=args.max_rounds<=4: parser.error('max-rounds must be in [1,4]')
     recipe=json.loads(args.recipe.read_text()) if args.recipe else {}
@@ -305,10 +365,10 @@ def main():
                                   reasoning=args.agent_reasoning,vision_mode=args.vision_mode) if not args.policy else None
     except ValueError as error:parser.error(str(error))
     args.out.mkdir(parents=True,exist_ok=False)
-    remote=RemoteSession(args.ssh_host,args.remote_root,args.gpu,args.out/'remote',recipe=recipe,max_rounds=args.max_rounds)
+    remote=RemoteSession(args.ssh_host,args.remote_root,args.gpu,args.out/'remote',recipe=recipe,max_rounds=args.max_rounds,port=args.port)
     report=run_interactive(remote,args.out,agent=agent,
                            policies=args.policy,between_rounds=args.between_rounds)
-    return 0 if not report['error'] else 1
+    return 1 if report.get('error') or report.get('cleanup_error') else 0
 
 
 if __name__=='__main__':

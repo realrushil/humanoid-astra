@@ -17,6 +17,21 @@ from .observations import ObservationConfig
 from .sonic_sim import support_release_ready, unsupported_standing
 
 
+def simulator_launch_command(python, runtime_root, package_root, source_record, arguments):
+    """Run the simulator from the same package as its parent session process.
+
+    `python -m` searches the working directory first. In an overlay session that
+    would silently load the older checkout and invalidate the source manifest.
+    """
+    if Path(package_root).resolve() == Path(runtime_root).resolve():
+        return [str(python), '-u', '-m', 'g1cap.sonic_sim', *arguments]
+    from .source_overlay import overlay_command
+    command = overlay_command(python, 'g1cap.sonic_sim', package_root,
+                              source_record, *arguments)
+    command.insert(1, '-u')
+    return command
+
+
 def check_startup_contact(state):
     """Reject a scene disturbed before admission, including transient contacts."""
     if 'first_environment_contact' not in state:
@@ -28,11 +43,14 @@ def check_startup_contact(state):
 
 class SonicRuntime:
     def __init__(self, root, output_dir, gpu, port=15556, startup_timeout=180., *, scene=None,
-                 hand_posture='upstream_default',arm_posture='upstream_default'):
+                 hand_posture='upstream_default',arm_posture='upstream_default',history_limit=512):
         self.root = Path(root).resolve()
         self.repo = self.root/'deps/GR00T-WholeBodyControl'
         self.output = Path(output_dir).resolve()
         self.gpu, self.port, self.startup_timeout = gpu, port, startup_timeout
+        # Persistent sessions drain evidence continuously; 512 samples retain
+        # about ten seconds while bounding GC pauses in the 50 Hz publisher.
+        self.history_limit = history_limit
         self.socket = f'/tmp/g1cap-{os.getpid()}-{uuid.uuid4().hex[:8]}.sock'
         self.client = SimulatorClient(self.socket)
         self.processes, self.streams = [], []
@@ -79,15 +97,20 @@ class SonicRuntime:
                 write_json(self.output/'scene.json',dict(self.scene.to_dict(),
                     model_sha256=hashlib.sha256(model.read_bytes()).hexdigest()))
                 model_args=['--model',str(model)]
-            self._spawn([str(self.root/'.venv-sonic/bin/python'), '-u', '-m', 'g1cap.sonic_sim',
-                         '--repo', str(self.repo), '--socket', self.socket,
-                         '--record', str(self.output/'poses.jsonl'),
-                         '--arm-posture', self.arm_posture, '--hand-posture', self.hand_posture,
-                         *model_args], 'simulator.log')
+            simulator_args=['--repo', str(self.repo), '--socket', self.socket,
+                            '--record', str(self.output/'poses.jsonl'),
+                            '--arm-posture', self.arm_posture,
+                            '--hand-posture', self.hand_posture, *model_args]
+            self._spawn(simulator_launch_command(
+                self.root/'.venv-sonic/bin/python', self.root,
+                Path(__file__).resolve().parent.parent,
+                self.output/'simulator-source-record.json', simulator_args),
+                'simulator.log')
             self._wait(lambda: Path(self.socket).exists(), 30.)
             check_startup_contact(self.client.state())
             self.publisher = SonicPublisher(self.repo, self.socket, port=self.port,
-                hand_posture=self.hand_posture,arm_posture=self.arm_posture)
+                hand_posture=self.hand_posture,arm_posture=self.arm_posture,
+                history_limit=self.history_limit)
             self.publisher.start()
             self._spawn(['bash', str(self.root/'launch-sonic-controller.sh'), str(self.root),
                          str(self.gpu), str(self.port)], 'controller.log')
@@ -201,7 +224,9 @@ def main():
         raise RuntimeError(f'runtime interrupted by signal {signum}')
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGHUP, interrupted)
-    runtime = SonicRuntime(args.root, args.out/'runtime', args.gpu, args.port)
+    # The legacy runner drains at action boundaries, which can be far apart.
+    runtime = SonicRuntime(args.root, args.out/'runtime', args.gpu, args.port,
+                           history_limit=12000)
     try:
         backend = runtime.start()
         result = run_episode(source, task, args.out/'episode', backend=backend,

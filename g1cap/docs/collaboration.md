@@ -2,7 +2,7 @@
 
 This folder is an independent copy of CAP's current implementation, not a symlink or import into the author's workstation. Treat edits here as edits to the shared version; later CAP changes will not appear automatically. Agree which repository owns a change before copying it back.
 
-The cleanup preserves all Python modules, tests and existing examples. It adds a current sensor recipe, selected human-facing evidence, focused documentation and package-data declarations for static calibration. Existing sibling files in `humanoid-astra/` are untouched. `SOURCE_MANIFEST.json` maps copied files to original paths and SHA-256 hashes; changed documentation/metadata and the GPU-normalized recipe are identified separately.
+The September 29 refresh copies the CAP package, tests, examples and scripts from its working tree, excluding disposable probes, raw runs and the locally adapted sensor recipe. It keeps existing sibling files in `humanoid-astra/` untouched. `SOURCE_MANIFEST.json` maps copied files to original paths and SHA-256 hashes, and identifies adapted documentation/metadata and the GPU-normalized recipe separately.
 
 Keep controller changes small and readable. Update `g1cap/README.md` when the reading order or runtime ownership changes, `docs/code-walkthrough.md` when execution changes, and the appropriate `g1cap/tool_docs/` contract when agent-visible behavior changes. Keep benchmark solutions and evaluator truth out of those agent-facing documents.
 

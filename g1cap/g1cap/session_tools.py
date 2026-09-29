@@ -264,6 +264,21 @@ for .5s; final success requires prior approach, base within 15 cm, wrist within
 5 cm, height within 3 cm, both feet supported, slow wrist/base and small tilt
 together for .5s.
 ''')
+    if task is not None and task.get('name')=='ordered_reach':
+        goal='''Task: reach the two named markers in task['target_ids'] IN ORDER, then
+return to the measured startup upper-body posture and pelvis height. Use
+observe_scene() for marker world positions. Read
+observe()['task_progress']['stage_index']: 0/1 select the next marker, 2 means
+return to neutral, and 3 means independently scored success. Earlier stages
+remain complete across program revisions; a failed or timed-out tool call does
+not reset the physical episode. Each marker needs the right wrist within 5 cm,
+slow wrist/base/yaw, both feet supported and small tilt for 0.5 s. Neutral uses
+observe()['task_progress']['neutral_reference'] (measured unsupported startup
+height and named waist/arm joint radians), with at most 0.12 rad joint error,
+4 cm height error and 0.10 rad/s upper-joint speed for 0.5 s. These are
+simulator-derived observations and an unqualified development task, not a
+calibrated hardware posture. Choose your own stance; avoid workstation contact.
+'''
     if task is not None and task.get('name')=='mobility':
         goal='''Task: visit task['waypoints'] in order. These are world XY metres.
 Read observe()['task_progress']['waypoint_index'] to resume at the first unfinished

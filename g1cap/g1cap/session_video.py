@@ -21,6 +21,17 @@ def checked_source(source, digest):
     return source
 
 
+def task_target_id(task, metrics):
+    """Select the currently scored marker, or None during neutral recovery."""
+    if task.get('name', task.get('task')) != 'ordered_reach':
+        return task.get('target_id')
+    index = metrics.get('stage_index', 0)
+    ids = task['target_ids']
+    if type(index) is not int or not 0 <= index <= len(ids) + 1:
+        raise ValueError('invalid ordered-reach stage in recorded evidence')
+    return ids[index] if index < len(ids) else None
+
+
 def recording_sections(frames, initial, end):
     """Split at recorded admission, never at a convenient successful action.
 
@@ -89,7 +100,8 @@ def render(case, output, selected_sections=None):
     recipe = json.loads(recipe_path.read_text()) if recipe_path.exists() else {}
     task = summary.get('task', recipe)
     mobility = task.get('name',task.get('task')) == 'mobility'
-    target_id = task.get('target_id')
+    ordered = task.get('name',task.get('task')) == 'ordered_reach'
+    target_id = task_target_id(task, {})
     target = next((m for m in scene['markers'] if m['name'] == target_id), None)
     if mobility:
         target = dict(position_world=[*task['waypoints'][-1],.02],
@@ -97,7 +109,8 @@ def render(case, output, selected_sections=None):
     if target is None:
         raise ValueError('recording needs its fixed workstation target_id to render honestly')
     target_xyz = target['position_world']
-    states = [e['observation'] for e in events if e['type'] == 'state']
+    state_events = [e for e in events if e['type'] == 'state']
+    states = [e['observation'] for e in state_events]
     initial_state = next((e['observation'] for e in events if e['type'] == 'start'), None)
     initial = initial_state['sim_time'] if initial_state else None
     terminal = next((e for e in events if e['type'] == 'terminal'), None)
@@ -168,18 +181,29 @@ def render(case, output, selected_sections=None):
                 for k, (sim, rate) in enumerate(schedule):
                     frame = frames[max(0, bisect.bisect_right(times, sim)-1)]
                     data.qpos[:] = frame['qpos']; mj.mj_forward(model, data)
+                    state_index = (bisect.bisect_right(state_times, sim)-1
+                                   if states and sim >= state_times[0] else None)
+                    progress = state_events[state_index].get('metrics', {}) if state_index is not None else {}
+                    active_target_id = task_target_id(task, progress)
+                    active_target = next((m for m in scene['markers']
+                                          if m['name'] == active_target_id), None)
+                    if ordered and active_target_id is not None and active_target is None:
+                        raise ValueError('recorded ordered target missing from scene')
+                    active_xyz = active_target['position_world'] if active_target else target_xyz
                     if mobility:
                         camera.lookat[:] = [data.qpos[0]+.3,data.qpos[1],.6]
                         camera.distance, camera.azimuth, camera.elevation = 3.4, 110, -28
                     renderer.update_scene(data, camera=camera, scene_option=options)
                     renderer.scene.flags[mj.mjtRndFlag.mjRND_SHADOW] = 0
                     renderer.scene.flags[mj.mjtRndFlag.mjRND_REFLECTION] = 0
-                    markers = [(m['position_world'], .018, [1,.7,.1,1] if m['name']==target_id else [.5,.5,.5,1]) for m in scene['markers']]
+                    markers = [(m['position_world'], .018, [1,.7,.1,1] if m['name']==active_target_id else [.5,.5,.5,1]) for m in scene['markers']]
                     wrist = data.body('right_wrist_yaw_link').xpos
                     if mobility:
                         markers += [([*p,.015],.12,[1,.7,.1,.6]) for p in task['waypoints']]
                     else:
-                        markers += [(target_xyz, .05, [1,.7,.1,.2]), (wrist, .014, [0,1,1,1])]
+                        if active_target is not None:
+                            markers.append((active_xyz, .05, [1,.7,.1,.2]))
+                        markers.append((wrist, .014, [0,1,1,1]))
                     for pos, radius, rgba in markers:
                         sc = renderer.scene
                         mj.mjv_initGeom(sc.geoms[sc.ngeom],
@@ -203,8 +227,8 @@ def render(case, output, selected_sections=None):
                         return (525+scale*np.dot(delta,right)/depth,
                                 175+360-scale*np.dot(delta,up)/depth)
                     wx, wy = pixel(wrist)
-                    gx, gy = pixel(target_xyz)
-                    if not setup and not mobility:
+                    gx, gy = pixel(active_xyz)
+                    if not setup and not mobility and active_target is not None:
                         draw.line((wx,wy,gx,gy), fill='#53f3ff', width=2)
                         draw.ellipse((wx-9,wy-9,wx+9,wy+9), outline='#53f3ff', width=3)
                     def text(x,y,value,f=font,color='white'):
@@ -223,6 +247,12 @@ def render(case, output, selected_sections=None):
                         length=sum(math.dist(a,b) for a,b in zip(route,route[1:]))
                         text(24,67,f'Route length {length:.1f} m | corridor half-width {task.get("corridor_half_width",.6):.1f} m | final yaw {task.get("final_yaw")} rad')
                         text(24,105,'Stop within 12 cm at each region for 0.5 s. No external support during the task.',small)
+                    elif ordered:
+                        text(24,18,'REACH THE MARKERS IN ORDER. RETURN TO NEUTRAL.',title_font)
+                        stage = progress.get('stage_index', 0)
+                        label = active_target['label'] if active_target else 'measured startup posture and height'
+                        text(24,67,f'Stage {min(stage+1,3)}/3: {label}.')
+                        text(24,105,'Each stage requires 0.5 s settled. Gold is the current marker; gray is inactive.',small)
                     else:
                         text(24,18,'WALK TO THE STATION. REACH THE GOLD MARKER.',title_font)
                         text(24,67,target['label'].capitalize()+'. Keep a stable stance; avoid hitting either station.')
@@ -240,7 +270,7 @@ def render(case, output, selected_sections=None):
                         elif kind == 'navigation_start':
                             active = event['operation']; phase = ('Walking toward the next region' if mobility else 'Walking toward the station') if active=='walk_to' else 'Executing '+active
                         elif kind == 'stationary_tool' and event['event']['type']=='command':
-                            active = event['event']['operation']; phase = 'Reaching for the gold marker' if active=='reach_right' else 'Executing '+active
+                            active = event['event']['operation']; phase = 'Reaching for the current marker' if active=='reach_right' else 'Executing '+active
                         elif kind == 'tool_result' and event['method'] not in ('observe','observe_scene'):
                             if event['result'].get('status')=='rejected':
                                 last_rejection = event['method']+': '+event['result'].get('reason','rejected')
@@ -260,14 +290,17 @@ def render(case, output, selected_sections=None):
                         text(24,914,'No task is being scored. No agent program is executing.')
                     elif mobility:
                         text(24,914,f'Base world XY: ({data.qpos[0]:.2f}, {data.qpos[1]:.2f}) m')
+                    elif ordered and active_target is None:
+                        text(24,914,f'Neutral joint error: {progress.get("neutral_max_joint_error_rad",0):.3f} rad | height error: {progress.get("neutral_height_error_m",0)*100:.1f} cm')
                     else:
-                        text(24,914,f'Wrist-to-goal distance: {math.dist(wrist,target_xyz)*100:.1f} cm   |   goal <= 5 cm')
+                        text(24,914,f'Wrist-to-goal distance: {math.dist(wrist,active_xyz)*100:.1f} cm   |   goal <= 5 cm')
                     if not setup and states and sim >= state_times[0]:
                         state = states[bisect.bisect_right(state_times,sim)-1]
                         text(24,952,f'Base speed {math.hypot(*state["planar_velocity"])*100:.1f} cm/s   |   goal <= 5 cm/s',small)
                     text(24,990,'Artificial setup is separate from task performance.' if setup else
                          ('Gold = arrival region. Map shows fixed route and current robot.' if mobility else
-                          'Gold = goal region. Cyan ring = measured wrist (overlay).'),small,'#f9cf60')
+                          ('Gold = current marker; gray = inactive. Cyan ring = wrist.' if ordered else
+                           'Gold = goal region. Cyan ring = measured wrist (overlay).')),small,'#f9cf60')
                     text(24,1027,'Recorded simulation. No grasping. Simulator-derived observations.',small)
                     text(1080,185,'INITIALIZATION PROTOCOL' if setup else 'EXACT EXECUTED PYTHON',font,'#8ce5ff')
                     if setup:

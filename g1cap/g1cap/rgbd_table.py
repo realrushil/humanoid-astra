@@ -66,8 +66,7 @@ def front_candidates(depth,intrinsic,support,neutral,exclude_robot,min_span=.15)
         boundary|=candidates
     points=cloud[boundary]
     lines=segments(points,n,d,min_span) if len(points)>=30 else []
-    centroid=np.median(cloud[planar],axis=0)
-    facing=[line for line in lines if centroid@line['normal_camera']+line['offset_m']>.03]
+    facing=[line for line in lines if facing_side_supported(cloud[planar],line)]
     return dict(status='observed_candidates',lines=facing,planar_points=int(planar.sum()))
 
 
@@ -79,3 +78,19 @@ def front_boundary(depth,intrinsic,support,neutral,exclude_robot):
     if len(facing)!=1:
         return dict(status='unavailable',reason='ambiguous_front' if facing else 'front_not_visible',candidate_count=len(facing))
     return dict(status='observed_candidate',line=facing[0],planar_points=result['planar_points'])
+
+
+def facing_side_supported(points,line):
+    """Require a substantial observed interior, not its occlusion-biased median.
+
+    Camera-optical points and line offsets are metres. At least 75% of the
+    measured plane lies no more than the existing 3 mm plane band outside the
+    edge; at least 25% extends beyond the existing 3 cm interior test. These
+    development classification assumptions are not calibrated safety bounds.
+    Full source association and downstream clearance checks remain required.
+    """
+    points=np.asarray(points,float)
+    distances=points@line['normal_camera']+line['offset_m']
+    if len(distances)<30 or not np.isfinite(distances).all():return False
+    near,far=np.quantile(distances,[.25,.75])
+    return bool(near>=-.003 and far>.03)

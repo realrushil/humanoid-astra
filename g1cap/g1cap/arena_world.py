@@ -20,6 +20,7 @@ from isaaclab.sensors import CameraCfg,ContactSensorCfg,ImuCfg
 from .arena_control import BoxControl
 from .arena_observation import assess_hold, loaded_contact_summary
 from .arena_scene import simplify_scene, configure_task, validate_transfer_scene, spawn_transfer_box
+from .arena_video import VIDEO_PERIOD_STEPS
 from .arena_surfaces import box_bounds, support_observation, lower_body_clearance, turn_clearance, read_support_parts
 from .toolkit.arena_approach import front_clearance,limit_navigation,GUARDED_BODIES
 from .toolkit.arena_geometry import collision_geometry
@@ -42,6 +43,8 @@ class NativeTerminal(Exception):pass
 
 class ArenaWorld:
     def __init__(self,builder,output,recipe,policy_port):
+        from .scene_uncertainty_runtime import configure_scene_uncertainty
+        self.scene_uncertainty,self.scene_uncertainty_forecast=configure_scene_uncertainty(recipe)
         self.output=Path(output)
         self.output.mkdir(parents=True,exist_ok=True)
         fixture=recipe.get('fixture','native_bin')
@@ -59,15 +62,30 @@ class ArenaWorld:
         sensor_balance=recipe.get('sensor_balance',False)
         visual_grasp_checks=recipe.get('visual_grasp_checks',False)
         arm_gravity=recipe.get('arm_gravity_compensation',False)
+        wrist_cameras=recipe.get('wrist_cameras',False)
         rgbd_period_steps=recipe.get('rgbd_period_steps',5)
+        self.rgbd_period_steps=rgbd_period_steps
+        # v2: one sensor-state estimator + few skills; the legacy perception/guard
+        # stack (visual_grasp_checks) stays off. See control_v2.py / sensor_state.py.
+        self.v2=recipe.get('control_track')=='sensor_state_v2'
+        if self.v2:
+            if recipe.get('visual_grasp_checks',False):raise ValueError('sensor_state_v2 replaces visual_grasp_checks')
+            record_sensors=sensor_balance=True
+            # v2 feeds GR00T from the sensor recorder (acquire); the env's own camera-image
+            # observation was computed every step unused (~15% of wall time, py-spy).
+            cfg.observations.camera_obs=None
         if type(rgbd_period_steps) is not int or rgbd_period_steps<=0:
             raise ValueError('rgbd_period_steps must be a positive integer')
-        if any(type(v) is not bool for v in (record_sensors,sensor_balance,visual_grasp_checks,arm_gravity)):
+        if any(type(v) is not bool for v in (record_sensors,sensor_balance,visual_grasp_checks,arm_gravity,wrist_cameras)):
             raise ValueError('sensor mode flags must be boolean')
-        if arm_gravity and not visual_grasp_checks:
+        if arm_gravity and not (visual_grasp_checks or self.v2):
             raise ValueError('arm gravity compensation requires the body/Dex3 visual sensor track')
         sensor_balance=sensor_balance or visual_grasp_checks
         record_sensors=record_sensors or sensor_balance
+        if wrist_cameras:
+            if not visual_grasp_checks:raise ValueError('wrist cameras require the sensor control track')
+            from .camera_rgb import configure_wrist_cameras
+            configure_wrist_cameras(cfg.scene)
         if sensor_balance:
             from .arena_sensor_action import SensorJointAction
             terms=[term for term in vars(cfg.actions).values()
@@ -104,7 +122,7 @@ class ArenaWorld:
             # Rendering advances no physics and introduces no settling actions.
             cfg.num_rerenders_on_reset=max(1,cfg.num_rerenders_on_reset)
         deadline=recipe.get('deadline',60.)
-        if not math.isfinite(deadline) or not 0<deadline<=180:raise ValueError('episode deadline must be in (0,180] simulation seconds')
+        if not math.isfinite(deadline) or not 0<deadline<=300:raise ValueError('episode deadline must be in (0,300] simulation seconds')
         # Native Galileo defaults to 30 s. Generation and revisions consume the
         # same episode, so propagate our declared budget before world creation.
         cfg.episode_length_s=deadline
@@ -157,7 +175,7 @@ class ArenaWorld:
         if fixture!='native_bin':
             assert not hasattr(cfg.scene,'blue_sorting_bin') or cfg.scene.blue_sorting_bin is None
             assert 'blue_sorting_bin' not in repr(cfg.events) and cfg.terminations.success is None
-        if visual_grasp_checks:
+        if visual_grasp_checks or self.v2:
             from .arena_scene import sensor_terminations
             sensor_terminations(cfg.terminations)
         self.env=builder.make_registered(cfg,kwargs)
@@ -165,8 +183,9 @@ class ArenaWorld:
         self.native.episode_recorder.set_output_path(str(self.output/'native-results.jsonl'))
         self.step_index=0;self.phase='idle';self.native_terminal=False
         self.contacts=[];self.history=deque(maxlen=51);self.clearances=deque(maxlen=6)
-        self.writers={name:imageio.get_writer(str(self.output/(name+'.mp4')),fps=50) for name in ('head','overview')}
-        self.files={name:(self.output/(name+'.jsonl')).open('w') for name in ('states','actions','physics-contacts')}
+        self.camera_rgb={}
+        self.writers={name:imageio.get_writer(str(self.output/(name+'.mp4')),fps=50//VIDEO_PERIOD_STEPS) for name in ('head','overview')}
+        self.files={name:(self.output/(name+'.jsonl')).open('w') for name in ('states','actions','physics-contacts','physics-dynamics')}
         self.obs,_=self.env.reset()
         native=self.native
         native.scene['overview'].set_world_poses_from_view(torch.tensor([[-1.5,-2.8,1.3]],device=native.device),torch.tensor([[.1,-.65,.05]],device=native.device))
@@ -212,19 +231,23 @@ class ArenaWorld:
         if record_sensors:
             from .arena_sensor_recording import SensorRecorder
             self.sensor_recorder=SensorRecorder(self.output/'sensors',native,self.term.robot_model,
-                                                sensor_balance=sensor_balance,hand_positions=visual_grasp_checks,
-                                                arm_gravity=arm_gravity,rgbd_period_steps=rgbd_period_steps)
+                                                sensor_balance=sensor_balance,hand_positions=visual_grasp_checks or self.v2,
+                                                arm_gravity=arm_gravity,rgbd_period_steps=rgbd_period_steps,
+                                                wrist_cameras=wrist_cameras,
+                                                save_frames=recipe.get('save_camera_frames',not self.v2))
         if visual_grasp_checks:
             from .arena_perception import ArenaBoxPerception
+            from .destination_surface import DestinationObservation
             from .observed_approach import ApproachEstimate
             from .observed_hand import HandClearanceEstimate
             from .sensor_robot_geometry import RobotGeometry
             self.box_perception=ArenaBoxPerception(self.term.sensor_model)
+            self.destination_observation=DestinationObservation()
             assets=Path(__file__).parent/'assets'
             self.approach_geometry=RobotGeometry(assets/'arena_g1_rev1_0_kinematics.urdf',
                 assets/'arena_g1_rev1_0_bounds.json',self.sensor_recorder.names)
-            from .loaded_stop import LoadedStopClearance
-            self.loaded_stop_clearance=LoadedStopClearance(assets/'arena_g1_rev1_0_kinematics.urdf',
+            from .source_stop import SourceStopClearance
+            self.loaded_stop_clearance=SourceStopClearance(assets/'arena_g1_rev1_0_kinematics.urdf',
                 assets/'arena_g1_rev1_0_bounds.json',self.names)
             self.approach=ApproachEstimate()
             self.observed_hand=HandClearanceEstimate()
@@ -234,10 +257,22 @@ class ArenaWorld:
             self.files['sensor-hand-clearance']=(self.output/'sensor-hand-clearance.jsonl').open('w')
             self.files['sensor-approach']=(self.output/'sensor-approach.jsonl').open('w')
             self.files['gr00t-inputs']=(self.output/'gr00t-inputs.jsonl').open('w')
+            self.files['gr00t-resets']=(self.output/'gr00t-resets.jsonl').open('w')
             self.files['visual-grasp']=(self.output/'visual-grasp.jsonl').open('w')
             self.files['visual-timing']=(self.output/'visual-timing.jsonl').open('w')
             self.files['scene-hold']=(self.output/'scene-hold.jsonl').open('w')
             self.files['loaded-stop']=(self.output/'loaded-stop.jsonl').open('w')
+        if self.v2:
+            from .sensor_state import SensorState
+            from .box_tracker import BoxTracker
+            assets=Path(__file__).parent/'assets'
+            self.state=SensorState(assets/'arena_g1_rev1_0_kinematics.urdf')
+            self.box_tracker=BoxTracker()
+            self.robot_bounds=json.loads((assets/'arena_g1_rev1_0_bounds.json').read_text())
+            self.v2_history=deque(maxlen=60);self.v2_row=None
+            self.v2_perception_period=int(recipe.get('v2_perception_period_steps',5))
+            self.files['estimate']=(self.output/'estimate.jsonl').open('w')
+            self.files['gr00t-inputs']=(self.output/'gr00t-inputs.jsonl').open('w')
         self.raw=self.capture()
         if sensor_balance:
             self.term.sensor_source=self.sensor_recorder.measurements
@@ -250,21 +285,33 @@ class ArenaWorld:
             self.term.arm_gravity=ArmGravity(self.term.sensor_model,self.names,stiffness,masses)
         from isaaclab_arena_gr00t.policy.gr00t_remote_closedloop_policy import Gr00tRemoteClosedloopPolicy,Gr00tRemoteClosedloopPolicyCfg
         self.policy=Gr00tRemoteClosedloopPolicy(Gr00tRemoteClosedloopPolicyCfg(policy_config_yaml_path='isaaclab_arena_gr00t/policy/config/g1_locomanip_gr00t_closedloop_config.yaml',policy_device='cpu',remote_host='127.0.0.1',remote_port=policy_port,num_envs=1))
-        self.policy.reset();self.policy.set_task_description(native.get_language_instruction())
-        if visual_grasp_checks:
+        self.configure_acquisition(recipe,native)
+        if visual_grasp_checks or self.v2:
             from .hand_sensors import measured_joint_positions
             initial_q=measured_joint_positions(self.sensor_recorder.latest_packet,self.sensor_recorder.latest_hands,self.names)
         else:initial_q=values(native.scene['robot'].data.joint_pos)[0]
         initial=initial_q+[0.,0.,0.,.75,0.,0.,0.]
-        self.control=BoxControl(initial,self.acquire,self.wrist_motion,placement_factory=self.placement_controller,
+        if self.v2:
+            from .control_v2 import ControlV2
+            def table_view(name,now):
+                v=self.state.views.get(name)
+                return v['points_pelvis'] if v is not None and 0<=now-v['time_s']<=.25 else None
+            self.control=ControlV2(initial,self.acquire,self.wrist_motion,self.robot_bounds,view=table_view,
+                                   joint_names=self.names)
+        else:self.control=BoxControl(initial,self.acquire,self.wrist_motion,placement_factory=self.placement_controller,
+            acquisition_begin=self.begin_acquisition if visual_grasp_checks else None,
+            acquisition_grasp=self.box_perception.acquisition_feedback if self.box_perception is not None else None,
+            carry_retention=self.box_perception.retention_feedback if self.sensor_guard is not None else None,
             visual_grasp=self.box_perception.feedback if self.box_perception is not None else None,
-            scene_hold=self.scene_hold_command if self.box_perception is not None else None,
+            scene_hold=self.probe_scene_hold_command if self.box_perception is not None else None,
             approach_feedback=self.approach.feedback if self.approach is not None else None,
             hand_clearance_feedback=self.observed_hand.feedback if self.observed_hand is not None else None,
             sensor_fault=self.sensor_guard.fault if self.sensor_guard is not None else None,
+            sensor_departure_factory=self.sensor_departure_controller if self.sensor_guard is not None else None,
             sensor_retreat_factory=self.sensor_retreat_controller if self.sensor_guard is not None else None,
             sensor_turn_factory=self.sensor_turn_controller if self.sensor_guard is not None else None,
             loaded_stop=self.loaded_stop_command if self.sensor_guard is not None else None,
+            sensor_destination_factory=self.sensor_destination_controller if self.sensor_guard is not None else None,
             sensor_lift_ready=(lambda:self.floor_hold_active and not self.floor_hold_pending
                 and self.scene_wrist_failure is None) if self.sensor_guard is not None else None)
         self.raw_policy=None;self.guard=None;self.input_hash=None
@@ -272,10 +319,10 @@ class ArenaWorld:
         self.write('metadata.json',dict(backend='arena_homie_gr00t',physics_dt=native.physics_dt,step_dt=native.step_dt,
             contact_observation_rate_Hz=200,recorded_setup_actions=0,gr00t_seed=recipe.get('gr00t_seed',0),
             joint_names=self.names,guarded_bodies=list(GUARDED_BODIES),box_mass_kg=self.box_mass,box_size_m=self.box_size,
-            policy_instruction=native.get_language_instruction(),observation_source='simulator_ground_truth',
+            policy_instruction=self.policy_instruction,observation_source='simulator_ground_truth',
             sensor_balance=sensor_balance,visual_grasp_checks=visual_grasp_checks,
             arm_gravity_compensation=arm_gravity,
-            control_track='sensor_loaded_turn_v5' if visual_grasp_checks else 'privileged_outer_controller',
+            control_track='sensor_state_v2' if self.v2 else 'sensor_loaded_turn_v5' if visual_grasp_checks else 'privileged_outer_controller',
             initial_action=initial,source_parts=self.source_parts))
         self.write('timing.json',dict(declared_deadline_s=deadline,native_episode_length_s=cfg.episode_length_s,
             native_max_episode_steps=native.max_episode_length,neural_inference='step_synchronous',
@@ -349,11 +396,32 @@ class ArenaWorld:
             box_floor_contact_N=self.force_sum('box_floor_contact'),foot_upward_N={s:self.upward(s+'_foot_contact') for s in ('left','right')})
         self.contacts.append(row)
         self.files['physics-contacts'].write(json.dumps(row)+'\n')
+        self._record_substep_dynamics(counter)
+
+    def _record_substep_dynamics(self,counter):
+        # Independent diagnostics only, after the native 5 ms update. World-frame
+        # poses use raw native xyzw quaternions. Velocity = linear m/s, angular rad/s.
+        # Effort is the actuator's clipped output (Nm), not a contact measurement.
+        robot,box=self.native.scene['robot'],self.native.scene['brown_box']
+        row=dict(physics_step=counter,time_s=counter*.005,action_step=self.step_index,phase=self.phase,
+            box_position_world_m=values(box.data.root_pos_w)[0],box_quat_xyzw=values(box.data.root_quat_w)[0],
+            box_velocity_world=values(box.data.root_vel_w)[0],
+            root_position_world_m=values(robot.data.root_pos_w)[0],root_quat_xyzw=values(robot.data.root_quat_w)[0],
+            root_velocity_world=values(robot.data.root_vel_w)[0],joint_position_rad=values(robot.data.joint_pos)[0],
+            joint_velocity_rad_s=values(robot.data.joint_vel)[0],joint_effort_nm=values(robot.actuators.applied_effort)[0])
+        self.files['physics-dynamics'].write(json.dumps(row,allow_nan=False)+'\n')
 
     def capture(self):
         self.camera_captured_at_unix_s=time.time()
         if self.sensor_recorder is not None:
+            if getattr(self,'v2',False):
+                # 50 Hz head RGB-D only while GR00T acquires (it needs it: 10 Hz broke every
+                # pickup); otherwise the estimator's own rate. Rendering it at 50 Hz all
+                # episode was the largest remaining cost (py-spy, profile-cube).
+                self.sensor_recorder.rgbd_period_steps=(self.rgbd_period_steps if self.phase=='acquire'
+                                                        else max(self.rgbd_period_steps,self.v2_perception_period))
             self.sensor_recorder.capture(self.step_index,self.step_index*.02)
+        if getattr(self,'v2',False):self._capture_v2()
         if self.box_perception is not None:
             measured=self.sensor_recorder.measurements()
             packet,camera=measured['proprioception'],measured['rgbd']
@@ -367,9 +435,16 @@ class ArenaWorld:
             if camera['step']==packet['step']:
                 started=time.perf_counter()
                 visual=self.box_perception.update(packet,camera,self.term.up_at_measurement(packet,camera))
-                from .observed_approach import observe_front
-                front=observe_front(self.approach_geometry,self.approach,packet,camera,visual['height_reference'],visual['up_body'])
-                observe_hand_planes(self.observed_hand,self.approach_geometry.model,packet,camera,visual['height_reference'],front)
+                from .scene_uncertainty_runtime import update_scene_uncertainty
+                visual['scene_uncertainty']=update_scene_uncertainty(self,visual['motion'])
+                from .sensor_kinematics import camera_in_body
+                joints=dict(zip(packet['joint_names'],packet['q_rad'],strict=True))
+                camera_pose=camera_in_body(self.approach_geometry.model,joints,camera['calibration'])
+                self.destination_observation.update(camera,packet,camera_pose,
+                    self.box_perception.latest_motion,up_body=visual['up_body'])
+                from ._destination_reference_observer import observe_destination_reference
+                observe_destination_reference(self,visual,packet,camera)
+                front=self.observe_source_obstacles(visual,packet,camera)
                 self.files['sensor-approach'].write(json.dumps(dict(step=self.step_index,
                     time_s=packet['time_s'],measurement=front,feedback=self.approach.feedback(packet['time_s'])),allow_nan=False)+'\n')
                 self.files['sensor-approach'].flush()
@@ -435,57 +510,88 @@ class ArenaWorld:
         row['turn_clearance_m']=turn_clearance(self.geometry,row,[part for parts in self.support_parts.values() for part in parts])
         row['stance_clear']=row['stance_clear'] and all(s['robot_contact_peak_N']<=5 for s in row['surfaces'].values())
         self.history.append(row);row['hold_observation_v2']=assess_hold(list(self.history))
-        self.camera_rgb={}
-        for name,sensor in [('head','robot_head_cam'),('overview','overview')]:
-            rgb=self.native.scene[sensor].data.output['rgb'][0].detach().cpu().numpy()
-            self.camera_rgb[name]=rgb[:,:,:3].copy()
-            row[name+'_sha256']=hashlib.sha256(rgb.tobytes()).hexdigest()
-            self.writers[name].append_data(rgb)
+        # Evidence video at 10 fps. Reading, hashing and encoding both cameras every 20 ms
+        # step took ~30% of wall time (py-spy, profile-cube 2026-09-23); the overview camera
+        # is only rendered when read, so this also cuts its rendering to 10 Hz.
+        if self.step_index%VIDEO_PERIOD_STEPS==0:
+            self.camera_rgb={}
+            for name,sensor in [('head','robot_head_cam'),('overview','overview')]:
+                rgb=self.native.scene[sensor].data.output['rgb'][0].detach().cpu().numpy()
+                self.camera_rgb[name]=rgb[:,:,:3].copy()
+                self.writers[name].append_data(rgb)
         self.files['states'].write(json.dumps(row)+'\n');self.files['states'].flush()
         return row
 
+    def _capture_v2(self):
+        """Sensor-state estimate for this step; never reads simulator state."""
+        from .control_v2 import estimated_row
+        rec=self.sensor_recorder
+        packet,hands=rec.latest_packet,rec.latest_hands
+        self.state.update_proprio(packet,hands)
+        camera=rec.latest_rgbd
+        # GR00T consumes every captured frame; the estimator only every
+        # v2_perception_period_steps (default 5 -> 10 Hz) to bound wall time.
+        fresh=(camera is not None and camera['step']==packet['step']
+               and packet['step']%self.v2_perception_period==0)
+        estimate=None
+        if fresh:
+            started=time.perf_counter()
+            estimate=self.box_tracker.update(camera)
+            self.state.update_camera(camera,estimate)
+            camera_wall=time.perf_counter()-started
+        row=estimated_row(self.state,self.robot_bounds,self.names,packet,hands,self.v2_history)
+        self.v2_history.append(row);self.v2_row=row
+        record=dict(step=packet['step'],time=row['time'],root_pos=row['root_pos'],yaw=math.atan2(self.state.odom.R[1,0],self.state.odom.R[0,0]),
+            tilt=row['tilt'],box=row['box'],box_held=row['box_held'],box_between_hands=row['box_between_hands'],
+            clearance=row['clearance'],approach_clearance_m=row.get('approach_clearance_m'))
+        if fresh:
+            record.update(camera_wall_s=camera_wall,box_status=estimate['status'] if estimate['status']=='accepted' else estimate['reason'])
+            record['tables']=row['tables']
+            record['landmark_correction']=self.state.last_correction
+            record['approach_source']=row.get('approach_source')
+        self.files['estimate'].write(json.dumps(record,allow_nan=False)+'\n')
+
     def controller_observation(self):
         """Strict sensor controller boundary; raw state is reserved for evidence."""
+        if getattr(self,'v2',False):return self.v2_row
         if self.sensor_guard is None:return self.raw
         return {'time':self.sensor_recorder.latest_packet['time_s']}
 
     def sensor_observation(self,now_s):
         """Physics-owner callback; never expose the raw evaluator observation."""
+        if getattr(self,'v2',False):
+            from .control_v2 import public_observation
+            return public_observation(self.v2_row,self.control)
         from .arena_public import sensor_observation
-        from .destination_surface import (destination_direction_segment, green_destination_mask,
-                                           observe_destination_surface)
-        from .sensor_kinematics import camera_in_body
         packet=self.sensor_recorder.latest_packet
         if abs(packet['time_s']-now_s)>1e-8:raise ValueError('public sensor timestamp mismatch')
         result=sensor_observation(packet,self.box_perception.track.observe(now_s),
             self.box_perception.feedback(now_s),self.box_perception.latest_motion,
-            loaded_stop=self.loaded_stop_feedback)
-        camera=self.sensor_recorder.latest_rgbd
-        try:
-            if (not math.isfinite(camera['time_s']) or
-                    not 0 <= packet['time_s']-camera['time_s'] <= .150001):
-                raise ValueError('destination_rgbd_stale')
-            destination=observe_destination_surface(camera['time_s'],camera['rgb'],
-                green_destination_mask(camera['rgb']),camera['depth_m'],camera['calibration']['intrinsic'])
-            if destination.get('status') == 'observed_destination_candidate':
-                joints=dict(zip(packet['joint_names'],packet['q_rad'],strict=True))
-                camera_pose=camera_in_body(self.approach_geometry.model,joints,camera['calibration'])
-                motion=self.box_perception.latest_motion
-                if motion is None or motion.get('status') != 'tracked_local_segment':
-                    raise ValueError('destination_motion_unavailable')
-                direction=destination_direction_segment(destination,camera_pose[:3,:3],
-                    np.asarray(motion['body_in_segment'])[:3,:3])
-                destination['direction_segment_xy']=direction
-                destination['direction_frame']='local_stance_segment'
-        except ValueError as error:
-            destination=dict(status='unavailable',reason='destination_sensor_invalid')
-        result['destination']=destination
+            loaded_stop=self.loaded_stop_feedback,retention=self.box_perception.retention_feedback(now_s))
+        result['destination']=self.destination_observation.observe(now_s)
+        from .departure_runtime import public_evidence
+        result['departure']=public_evidence(self,now_s)
+        if self.sensor_recorder.rgb_stream is not None:
+            result['camera_names']=list(self.sensor_recorder.rgb_stream.calibrations)
         return result
+
+    def camera_observation(self):
+        stream=self.sensor_recorder.rgb_stream
+        return stream.latest if stream is not None else {}
 
     def export_camera_frames(self,directory):
         """Owner thread only: export the last recorded step, without stepping physics."""
         directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
         frames=[]
+        stream=self.sensor_recorder.rgb_stream if self.sensor_recorder is not None else None
+        if stream is not None:
+            for name,packet in stream.latest.items():
+                rgb=stream.images[name];path=directory/(name+'.png');imageio.imwrite(path,rgb)
+                frames.append(dict(camera=name,file=path.name,width=rgb.shape[1],height=rgb.shape[0],
+                    encoded_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),rgb_sha256=packet['rgb_sha256'],
+                    source='live_camera',time_s=packet['time_s'],step=packet['step'],modality='rgb',
+                    calibration_id=packet['calibration_id'],calibration=packet['calibration']))
+            return frames
         for camera,rgb in self.camera_rgb.items():
             if self.box_perception is not None and camera!='head':continue
             path=directory/(camera+'.png')
@@ -495,8 +601,115 @@ class ArenaWorld:
                 rgb_sha256=hashlib.sha256(rgb.tobytes()).hexdigest(),source='live_camera'))
         return frames
 
-    def acquire(self,observation):
+    def configure_acquisition(self,recipe,native):
+        """Explicit language comparison; no change to checkpoint input schema.
+
+        Recipe language is an experiment condition, not a measured scene fact.
+        Default preserves the native instruction. Retain exactly what is sent
+        in private episode metadata so conditioning comparisons are auditable.
+        """
+        instruction=(recipe['acquisition_instruction'] if 'acquisition_instruction' in recipe
+                     else native.get_language_instruction())
+        if not isinstance(instruction,str) or not instruction.strip() or len(instruction)>512:
+            raise ValueError('acquisition instruction must be nonempty text up to 512 characters')
+        self.policy_instruction=instruction
+        self.policy.reset();self.policy.set_task_description(instruction)
+
+    def observe_source_obstacles(self,visual,packet,camera):
+        """Current camera-time source obstacles; separate from grasp readiness."""
+        from .observed_approach import observe_front
+        from .observed_hand import observe_hand_planes
+        reference=visual['height_reference']
+        control=getattr(self,'control',None)
+        recovering=(control is not None and control.phase in ('idle','wait')
+                    and (reference is None or reference['status']!='observed_candidate')
+                    and visual['support'] is not None
+                    and visual['support']['status']=='observed_candidate')
+        if recovering!=getattr(self,'recovering_source_obstacles',False):
+            # Do not transfer closing-rate history between a lost source and
+            # a newly observed support. Both estimators need two fresh images.
+            self.approach.invalidate('source_reference_changed')
+            self.observed_hand.invalidate('source_reference_changed')
+        self.recovering_source_obstacles=recovering
+        if recovering:reference=visual['support']
+        front=observe_front(self.approach_geometry,self.approach,packet,camera,reference,visual['up_body'])
+        observe_hand_planes(self.observed_hand,self.approach_geometry.model,packet,camera,reference,front)
+        self.loaded_stop_clearance.observe_front(front,visual['motion'],
+            self.box_perception.motion.rotation,self.box_perception.source_plane,
+            visual['source_obstacle'] is not None and not recovering)
+        self.observe_measured_source(visual,packet,camera)
+        return front
+
+    def observe_measured_source(self,visual,packet,camera):
+        """Connected head RGB-D evidence, tied to the actual source tracker."""
+        from ._connected_front import front_candidates
+        from ._source_references import SourceFrontReferences
+        from .sensor_kinematics import camera_in_body
+        owner=self.box_perception.source_plane
+        bank=getattr(self,'measured_source_references',None)
+        active=(getattr(getattr(self,'control',None),'source_turn_geometry',None) is not None
+                or getattr(self,'departure_reference',None) is not None)
+        if bank is None or (bank.owner is not owner and not active):
+            if owner is None:return
+            bank=self.measured_source_references=SourceFrontReferences(owner,uncertainty=getattr(self,'scene_uncertainty',None))
+        if 'source-references' not in self.files:
+            self.files['source-references']=(self.output/'source-references.jsonl').open('w')
+        if packet['step']!=camera['step'] or abs(packet['time_s']-camera['time_s'])>1e-8:
+            bank.invalidate('source_camera_encoder_mismatch')
+            raise ValueError('source_camera_encoder_mismatch')
+        result=front_candidates(camera['depth_m'],camera['calibration']['intrinsic'],
+            visual['source_obstacle'],np.ptp(np.asarray(camera['rgb'],float),axis=2)<25,
+            lambda points:self.approach_geometry.exclude(points,packet,camera['calibration']),min_span=0.)
+        C=camera_in_body(self.approach_geometry.model,
+            dict(zip(packet['joint_names'],packet['q_rad'])),camera['calibration'])
+        candidates=[dict(line=line,normal_body=(C[:3,:3]@line['normal_camera']).tolist(),
+            anchor_body=(np.mean(line['endpoints_camera_m'],axis=0)@C[:3,:3].T+C[:3,3]).tolist())
+            for line in result.get('lines',[])]
+        self.departure_source_input=dict(time_s=packet['time_s'],candidates=candidates,owner=owner,motion=visual['motion'])
+        feedback=bank.observe(packet['time_s'],candidates,owner,visual['motion'],
+            source_valid=owner is not None and owner.plane is not None)
+        self.files['source-references'].write(json.dumps(dict(step=packet['step'],
+            time_s=packet['time_s'],feedback=feedback),allow_nan=False)+'\n')
+        self.files['source-references'].flush()
+
+    def screen_measured_source(self,packet,evaluate,*,stopping=False):
+        from ._source_reference_screen import screen_references
+        bank=getattr(self,'measured_source_references',None)
+        if bank is None:raise ValueError('source_reference_unavailable')
+        from .scene_uncertainty_runtime import navigation_forecast
+        return screen_references(self.loaded_stop_clearance,bank,self.box_perception.source_plane,
+            packet,self.box_perception.motion.rotation,evaluate,allow_top=stopping,
+            forecast=navigation_forecast(self,stopping=stopping))
+
+    def begin_acquisition(self,now_s):
+        """Discard cached policy actions at admission; preserve the physical episode.
+
+        Native reset clears the remote policy and local chunk scheduler only.
+        It does not call env.reset, change controller history or rewind time.
+        """
+        source=(self.box_perception.prepare_source(now_s)
+                if self.box_perception is not None else None)
         if self.box_perception is not None:
+            grasp=self.box_perception.acquisition_feedback(now_s)
+            if grasp['status']!='available':raise ValueError('pickup_support_unavailable')
+        record=dict(time_s=now_s,step=self.step_index,status='reset')
+        started=time.monotonic()
+        try:self.policy.reset()
+        except Exception as error:
+            record.update(status='failed',error=repr(error))
+            raise ValueError('acquisition_policy_reset_failed') from error
+        finally:
+            record['wall_time_s']=time.monotonic()-started
+            self.files['gr00t-resets'].write(json.dumps(record)+'\n')
+            self.files['gr00t-resets'].flush()
+        if self.box_perception is not None:
+            self.box_perception.commit_acquisition(source,grasp)
+            # The new source was validated against this same fresh strict
+            # support. Preserve its already-earned front/hand rate history.
+            self.recovering_source_obstacles=False
+
+    def acquire(self,observation):
+        if self.box_perception is not None or getattr(self,'v2',False):
             from .hand_sensors import acquisition_joint_sample
             names=[name for name,_ in sorted(self.policy.robot_state_joints_config.items(),key=lambda item:item[1])]
             camera=self.sensor_recorder.latest_rgbd
@@ -521,6 +734,7 @@ class ArenaWorld:
             action[43:46],self.guard=limit_navigation(action[43:46],observation['root_quat'],observation['approach_clearance_m'],observation['approach_closing_speed_m_s'])
         if self.hand_clearance is None:
             self.hand_clearance=AcquisitionHandClearance(self.term.robot_model,self.names,
+                {'robot':self.robot_bounds} if getattr(self,'v2',False) else
                 self.geometry if self.observed_hand is None else None)
         if self.observed_hand is None:
             action=self.hand_clearance.command(observation,action)
@@ -540,7 +754,13 @@ class ArenaWorld:
             if fault:raise ValueError(fault)
             if self.scene_wrist_hold is None:raise ValueError('loaded_stop_wrist_owner_unavailable')
             if self.loaded_stop_evidence_error:raise ValueError(self.loaded_stop_evidence_error)
-            return self.scene_hold_command('stopped',now_s,result)
+            result=self.scene_hold_command('stopped',now_s,result)
+            if getattr(self.control,'destination_travel_geometry',None) is not None:
+                screen=self.probe_destination_screen(now_s,result,previous,stopping=True)
+                self.loaded_stop_feedback=dict(status='active',time_s=now_s,
+                    clearance_lower_m=screen['lower_m'],required_margin_m=screen['required_margin_m'],
+                    obstacle_scope='source_and_destination')
+            return result
         except ValueError as error:
             self.loaded_stop_feedback=dict(status='failed',time_s=now_s,reason=str(error))
             raise
@@ -558,16 +778,18 @@ class ArenaWorld:
         """
         from .scene_wrist_hold import SceneWristHold
         stopping=phase=='stopped'
+        if self.control._retained_carry() and self.scene_wrist_hold is not self.control.carry_admission.owner:
+            self.control.carry_admission.fail('carry_owner_changed')
+            raise ValueError('carry_owner_changed')
         self.loaded_stop_feedback=dict(status='inactive',time_s=now_s)
         if phase=='acquire':
             self.scene_wrist_hold=None;self.scene_wrist_failure=None
             self.floor_hold_pending=False;self.floor_hold_active=False
-            self.box_perception.begin_acquisition()
             return previous
         if self.scene_wrist_failure is not None:
-            if phase in ('verify_pickup','hold','sensor_retreat','sensor_settle','sensor_lift','sensor_turn','sensor_turn_settle','stopped'):raise ValueError(self.scene_wrist_failure)
+            if phase in ('source_departure','source_departure_settle','verify_pickup','hold','sensor_retreat','sensor_settle','sensor_lift','sensor_turn','sensor_turn_settle','stopped'):raise ValueError(self.scene_wrist_failure)
             return previous
-        if self.scene_wrist_hold is None and phase not in ('verify_pickup','hold','sensor_retreat','sensor_settle','sensor_lift','sensor_turn','sensor_turn_settle'):return previous
+        if self.scene_wrist_hold is None and phase not in ('source_departure','source_departure_settle','verify_pickup','hold','sensor_retreat','sensor_settle','sensor_lift','sensor_turn','sensor_turn_settle'):return previous
         if phase=='sensor_lift' and not self.floor_hold_active:self.floor_hold_pending=True
         packet=self.sensor_recorder.latest_packet
         sensor_control=self.control.sensor_fault is not None
@@ -584,6 +806,8 @@ class ArenaWorld:
                     raise ValueError('stop_visual_retention_unavailable')
                 if self.scene_wrist_hold is None or not self.floor_hold_active or self.floor_hold_pending:
                     raise ValueError('loaded_stop_wrist_owner_unavailable')
+            elif self.control._retained_carry():
+                self.control.carry_feedback(now_s)
             else:
                 grasp=self.box_perception.feedback(now_s)
                 if grasp['status']!='available':
@@ -591,6 +815,14 @@ class ArenaWorld:
                 if sensor_control and (not grasp.get('opposing_near_wrists') or not grasp.get('attitude_ok')
                         or grasp.get('gap_m',0.)<.02):
                     raise ValueError('hold_visual_retention_lost')
+            # Preserve the existing moving acquisition handoff. Enter the
+            # rate-constrained mode only with the settled lift prerequisite;
+            # keep it through later hold/turn/stop without reanchoring.
+            constrain=sensor_control and phase=='sensor_lift'
+            if constrain:
+                admission=self.box_perception.feedback(now_s)
+                if admission.get('status')!='available' or admission.get('settled_retention') is not True:
+                    raise ValueError('lift_grasp_unsettled')
             fresh=motion is not None and abs(motion['time_s']-packet['time_s'])<1e-8
             if sensor_control:
                 # Current encoders pair with the existing 50 Hz IMU rotation.
@@ -604,21 +836,29 @@ class ArenaWorld:
                     result=list(previous);result[43:46]=[0.,0.,0.]
                     return result
                 self.scene_wrist_hold=SceneWristHold(self.term.sensor_model,self.names,packet,motion,previous,
-                                                    frame_key=frame_key)
+                                                    frame_key=frame_key,rate_constrained=constrain)
                 self.floor_hold_active=carrying;self.floor_hold_pending=False
                 self.lift_anchor_m=self.control.lift_used_m
             elif (sensor_control or fresh) and packet['time_s']>self.scene_wrist_hold.updated_at:
+                if constrain:self.scene_wrist_hold.rate_constrained=True
                 if carrying and not self.control.lift_failed:
                     self.scene_wrist_hold.raise_targets(self.control.lift_used_m-self.lift_anchor_m)
                 self.scene_wrist_hold.update(packet,motion)
             result=self.scene_wrist_hold.command(now_s,previous)
-            if stopping:
-                screen=self.loaded_stop_clearance.screen(packet,self.sensor_recorder.latest_hands,
+            # Destination stopping is screened by loaded_stop_command after
+            # this paired update, outside the wrist solver failure latch.
+            if stopping and getattr(self.control,'destination_travel_geometry',None) is None:
+                evaluate=lambda:self.loaded_stop_clearance.screen(packet,self.sensor_recorder.latest_hands,
                     self.box_perception.motion.rotation,result)
+                screen=(self.screen_measured_source(packet,evaluate,stopping=True)
+                    if getattr(self.control,'source_turn_geometry',None) is not None else evaluate())
                 record['stop_screen']=screen
                 if screen['status']!='clear':raise ValueError('coupled_stop_path_margin_insufficient')
                 self.loaded_stop_feedback=dict(status='active',time_s=now_s,
                     clearance_lower_m=screen['lower_m'],required_margin_m=screen['required_margin_m'])
+                for key in ('source_reference','source_observed_at_s','source_age_s',
+                            'assumed_translation_error_m','assumed_rotation_error_rad'):
+                    if key in screen:self.loaded_stop_feedback[key]=screen[key]
             record.update(status='active',solve=self.scene_wrist_hold.last_solve)
             return result
         except ValueError as error:
@@ -630,21 +870,128 @@ class ArenaWorld:
             self.files['scene-hold'].write(json.dumps(record,allow_nan=False)+'\n')
             self.files['scene-hold'].flush()
 
+    def sensor_destination_controller(self,now_s,previous,distance_m):
+        """Internal bounded trial factory; public sensor tools remain unchanged."""
+        from ._destination_approach_factory import make_destination_approach
+        controller=make_destination_approach(self,now_s,distance_m)
+        self.control.destination_travel_geometry=self.probe_destination_geometry
+        return controller
+
+    def probe_destination_geometry(self,now_s):
+        from ._final_destination_guard import screen_destination_geometry
+        if getattr(self,'destination_travel_failure',None):return self.destination_travel_failure
+        proposed=list(self.control.last_action);proposed[43:46]=[0.,0.,0.]
+        try:
+            self.control.carry_admission.require_owner(self.scene_wrist_hold)
+            self.control.carry_feedback(now_s)
+            if self.loaded_stop_evidence_error:raise ValueError(self.loaded_stop_evidence_error)
+            result=screen_destination_geometry(self,now_s,proposed,self.control.last_action)
+            if result['status']!='clear':raise ValueError('destination_travel_probe_margin_insufficient')
+        except ValueError as error:return str(error)
+        return None
+
+    def sensor_destination_observation(self,now_s):
+        """Camera-time destination/retention and current sensor navigation heading."""
+        from ._destination_runtime_observation import destination_observation
+        return destination_observation(self,now_s)
+
     def sensor_turn_observation(self,now_s):
-        """Current sensor control frame and visual grasp; no simulator pose."""
+        """Separate retained-object evidence, never a synthesized height."""
+        self.control.carry_admission.require_owner(self.scene_wrist_hold)
         return dict(frame=self.box_perception.control_frame(now_s),
-            grasp=self.box_perception.feedback(now_s),up=self.box_perception.carry_frame.up.copy())
+            retention=self.control.carry_feedback(now_s),up=self.box_perception.carry_frame.up.copy())
+
+    def probe_source_screen(self,now_s,proposed,previous):
+        from ._source_turn_probe import SourceTurnProbe
+        if not hasattr(self,'source_turn_probe'):
+            assets=Path(__file__).parent/'assets'
+            self.source_turn_probe=SourceTurnProbe(assets/'arena_g1_rev1_0_kinematics.urdf',
+                assets/'arena_g1_rev1_0_bounds.json',self.names)
+            self.files['source-turn-probe']=(self.output/'source-turn-probe.jsonl').open('w')
+        row=dict(time_s=now_s,status='failed')
+        try:
+            if self.loaded_stop_evidence_error:raise ValueError(self.loaded_stop_evidence_error)
+            row=self.screen_measured_source(self.sensor_recorder.latest_packet,
+                lambda:self.source_turn_probe.screen(self.loaded_stop_clearance,
+                    self.sensor_recorder.latest_packet,self.sensor_recorder.latest_hands,
+                    self.box_perception.motion.rotation,self.box_perception.carry_seed,proposed,previous))
+            if row['status']!='clear':raise ValueError('source_turn_probe_margin_insufficient')
+            return row
+        except ValueError as error:
+            row['reason']=str(error)
+            raise
+        finally:
+            self.files['source-turn-probe'].write(json.dumps(row,allow_nan=False)+'\n')
+            self.files['source-turn-probe'].flush()
+
+    def probe_source_geometry(self,now_s):
+        if getattr(self,'source_turn_probe_failure',None):return self.source_turn_probe_failure
+        proposed=list(self.control.last_action);proposed[43:46]=[0.,0.,0.]
+        try:self.probe_source_screen(now_s,proposed,self.control.last_action)
+        except ValueError as error:return str(error)
+        return None
+
+    def probe_destination_screen(self,now_s,proposed,previous,*,stopping=False):
+        """Both task tables, evaluated after the existing paired wrist owner."""
+        from ._loaded_travel_probe import SourceTurnProbe
+        from ._final_destination_guard import screen_final_destination_command
+        from ._combined_destination_stop import screen_destination_stop
+        if not hasattr(self,'loaded_travel_probe'):
+            assets=Path(__file__).parent/'assets'
+            self.loaded_travel_probe=SourceTurnProbe(assets/'arena_g1_rev1_0_kinematics.urdf',
+                assets/'arena_g1_rev1_0_bounds.json',self.names)
+        if 'destination-travel-probe' not in self.files:
+            self.files['destination-travel-probe']=(self.output/'destination-travel-probe.jsonl').open('w')
+        row=dict(time_s=now_s,status='failed')
+        try:
+            if self.loaded_stop_evidence_error:raise ValueError(self.loaded_stop_evidence_error)
+            evaluate=screen_destination_stop if stopping else screen_final_destination_command
+            row=evaluate(self,now_s,proposed,previous)
+            row['phase']='stopped' if stopping else 'travel'
+            if row['status']!='clear':raise ValueError('destination_travel_probe_margin_insufficient')
+            return row
+        except ValueError as error:
+            row['reason']=str(error)
+            raise
+        finally:
+            self.files['destination-travel-probe'].write(json.dumps(row,allow_nan=False)+'\n')
+            self.files['destination-travel-probe'].flush()
+
+    def probe_scene_hold_command(self,phase,now_s,previous):
+        result=self.scene_hold_command(phase,now_s,previous)
+        if getattr(self.control,'destination_travel_geometry',None) is not None and phase!='stopped':
+            try:self.probe_destination_screen(now_s,result,previous)
+            except ValueError as error:
+                self.destination_travel_failure=str(error)
+                raise
+        elif getattr(self.control,'source_turn_geometry',None) is not None and phase!='stopped':
+            # A probe rejection must not poison the existing wrist owner;
+            # BoxControl fails the operation, zeros nav, and retains stop support.
+            try:self.probe_source_screen(now_s,result,previous)
+            except ValueError as error:
+                self.source_turn_probe_failure=str(error)
+                raise
+        return result
 
     def sensor_turn_controller(self,now_s,previous,angle_rad):
-        from .sensor_turn import SensorTurn
+        from ._retained_turn import RetainedTurn
         if (self.scene_wrist_hold is None or self.scene_wrist_failure is not None
                 or not self.floor_hold_active or self.floor_hold_pending):
             raise ValueError('turn_wrist_owner_unavailable')
-        controller=SensorTurn(now_s,angle_rad,self.sensor_turn_observation)
+        retained=self.control.carry_feedback(now_s)
+        self.control.carry_admission.arm(now_s,retained,self.scene_wrist_hold)
+        controller=RetainedTurn(now_s,angle_rad,self.sensor_turn_observation)
         sample=self.sensor_turn_observation(now_s)
         self.box_perception.begin_carry(now_s)
         self.scene_wrist_hold.follow_heading(sample['frame'],sample['up'])
+        self.control.source_turn_geometry=self.probe_source_geometry
+        reason=self.probe_source_geometry(now_s)
+        if reason:raise ValueError(reason)
         return controller
+
+    def sensor_departure_controller(self,now_s,previous,yaw_rad):
+        from .departure_runtime import begin
+        return begin(self,now_s,previous,yaw_rad)
 
     def sensor_retreat_observation(self,now_s):
         """Only measured front/grasp/control-frame values, never self.raw."""
@@ -693,6 +1040,8 @@ class ArenaWorld:
             sensor_lift=(self.control.clearance_lift.result() if self.control.phase=='sensor_lift' else None),
             sensor_turn=(self.control.loaded_motion.measurements(self.raw['time'])
                 if self.sensor_guard is not None and self.control.method=='turn_with_box' else None),
+            source_departure=(self.control.loaded_motion.measurements(self.raw['time'])
+                if self.sensor_guard is not None and self.control.method=='depart_source' else None),
             sensor_retreat=(self.control.loaded_motion.measurements(self.raw['time'])
                 if self.sensor_guard is not None and self.control.method=='retreat_with_box' else None),
             visual_grasp_feedback=(self.box_perception.feedback(self.raw['time'])

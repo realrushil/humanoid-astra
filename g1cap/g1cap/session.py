@@ -45,10 +45,12 @@ class Session:
         self.initial=publisher.latest_state()
         self.raw=copy.deepcopy(self.initial)
         from .workstation_task import WorkstationTask, WorkstationEvaluator
+        from .ordered_reach_task import OrderedReachTask, OrderedReachEvaluator
         from .mobility_task import MobilityTask, MobilityEvaluator
         from .stationary_task import StationaryTask,StationaryEvaluator
         evaluator=(StationaryEvaluator if isinstance(task,StationaryTask) else
                    MobilityEvaluator if isinstance(task,MobilityTask) else
+                   OrderedReachEvaluator if isinstance(task,OrderedReachTask) else
                    WorkstationEvaluator if isinstance(task,WorkstationTask) else SessionEvaluator)
         self.evaluator=evaluator(task,self.initial)
         self.sequence=self.initial['sequence']

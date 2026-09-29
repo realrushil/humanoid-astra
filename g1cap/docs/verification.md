@@ -1,5 +1,14 @@
 # Verification of the shared package
 
+## 2026-09-29 refresh
+
+- Copied current CAP package, tests, examples and scripts from the CAP working tree at HEAD `0a681ad`, including uncommitted CAP edits. The snapshot hash manifest lists 342 files; 329 are byte-identical to their source and 13 are adapted or sharing-only files. The older GPU-normalized sensor recipe remains at model GPU 0.
+- From this standalone directory, the existing `temp/sensor-audit-venv` Python 3.12 environment ran `python -m unittest discover -s tests -v` with native macOS worker sandbox access: **861 tests, OK, 13 skipped**. Both `python -m g1cap --help` and `python -m g1cap.interactive --help` exited successfully.
+- A preliminary system-Python run lacked scientific packages and had sandbox failures. A Python 3.12 run with NumPy/SciPy but without Pillow/Pinocchio reached 840 tests and failed on those missing dependencies plus one worker timing test. The complete project environment above resolved those limits. These are environment checks, not robot physics trials.
+- This refresh ran no new physics, coding-agent generation or GPU work. The separate independent-wrist prototype and its video were not copied into this code refresh. Native simulator and hardware qualification were not performed.
+
+The section below records the original September 18 package verification and remains historical.
+
 Checked on 2026-09-18, from this standalone project root.
 
 | Check | Result |

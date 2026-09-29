@@ -1,106 +1,138 @@
-"""Bounded loaded approach driven by a visible RGB-D destination candidate.
+"""Unwired destination-relative navigation draft, requiring an external screen.
 
-All distances are metres and timestamps are simulation seconds.  The callback
-must provide a current destination centroid/range, a camera-calibrated planar
-direction in the local stance segment, and the same retained-grasp/frame
-signals used by loaded carry.  This controller owns only bounded navigation;
-the existing paired wrist and whole-body balance owners remain responsible for
-the load.
+Metres/radians in a continuous local stance segment. The screen must certify
+observed travel space, body/box/arm paths and stopping; a plane candidate alone
+cannot do that. No live factory or public tool exposes this controller.
 """
-
-from collections import deque
 import math
 
 
+def number(value):
+    return type(value) in (int,float) and math.isfinite(value)
+
+
+def rigid(value):
+    try:
+        if len(value)!=4 or any(len(row)!=4 for row in value):raise ValueError()
+        if not all(number(x) for row in value for x in row):raise ValueError()
+        if any(abs(a-b)>1e-6 for a,b in zip(value[3],[0,0,0,1])):raise ValueError()
+        r=[row[:3] for row in value[:3]]
+        for i in range(3):
+            for j in range(3):
+                if abs(sum(r[k][i]*r[k][j] for k in range(3))-(i==j))>1e-6:raise ValueError()
+        det=sum(r[0][i]*(r[1][(i+1)%3]*r[2][(i+2)%3]-r[1][(i+2)%3]*r[2][(i+1)%3]) for i in range(3))
+        if abs(det-1)>1e-6:raise ValueError()
+    except (TypeError,ValueError,IndexError):raise ValueError('destination_geometry_invalid') from None
+    return value
+
+
 class SensorDestinationApproach:
-    def __init__(self, now_s, distance_m, observe, wrist_ready):
-        if (isinstance(distance_m, bool) or not isinstance(distance_m, (int, float)) or
-                not math.isfinite(distance_m) or not .20 <= distance_m <= .50):
-            raise ValueError('distance_outside_envelope')
-        self.observe, self.wrist_ready = observe, wrist_ready
-        self.distance = float(distance_m)
-        self.started = self.previous = float(now_s)
-        self.segment = None
-        self.anchor_translation = None
-        self.direction = None
-        self.phase = 'destination_approach'
-        self.speed = 0.0
-        self.history = deque(maxlen=51)
-        sample = self.sample(now_s)
-        self.segment = sample['frame']['segment']
-        self.anchor_translation = tuple(sample['frame']['translation_segment_m'])
-        self.direction = tuple(sample['destination']['direction_segment_xy'])
+    def __init__(self,now_s,distance_m,observe,wrist_ready,*,screen):
+        if not number(now_s) or now_s<0:raise ValueError('destination_clock_invalid')
+        if not number(distance_m) or not .20<=distance_m<=.50:raise ValueError('distance_outside_envelope')
+        if not callable(screen):raise ValueError('destination_path_screen_required')
+        self.observe,self.wrist_ready,self.screen=observe,wrist_ready,screen
+        self.distance=float(distance_m);self.started=self.previous=self.command_time=float(now_s)
+        self.segment=self.epoch=self.direction=self.anchor=None
+        self.failure=None;self.speed=0.;self.phase='destination_approach'
+        self.last_camera=None;self.last_progress=None;self.settled_since=None
+        self.zero_since=None;self.latest=None
+        sample=self.sample(now_s)
+        if sample['grasp']['ready'] is not True:self.fail('destination_initial_grasp_not_ready')
+        self.segment=sample['frame']['segment'];self.epoch=sample['destination']['view_epoch']
+        self.anchor=[row[3] for row in sample['frame']['body_in_segment'][:3]]
+        direction=sample['destination']['direction_segment_xy'];length=math.hypot(*direction)
+        self.direction=[x/length for x in direction]
 
-    def sample(self, now_s):
-        sample = self.observe(now_s)
+    def fail(self,reason):
+        self.failure=reason;self.speed=0.;self.phase='destination_failed'
+        raise ValueError(reason)
+
+    def sample(self,now_s):
+        if self.failure:self.fail(self.failure)
+        if not number(now_s) or not 0<=now_s-self.previous<=.150001:self.fail('destination_motion_time_gap')
+        self.previous=now_s
+        if now_s-self.started>12.:self.fail('destination_approach_timeout')
         try:
-            destination, grasp, frame = sample['destination'], sample['grasp'], sample['frame']
-        except (KeyError, TypeError):
-            raise ValueError('destination_observation_unavailable') from None
-        if destination.get('status') != 'observed_destination_candidate':
-            raise ValueError('destination_observation_unavailable')
-        observed = destination.get('observed_at_s')
-        if (not isinstance(observed, (int, float)) or isinstance(observed, bool) or
-                not math.isfinite(observed) or not 0 <= now_s - observed <= .150001):
-            raise ValueError('destination_observation_stale')
-        if (grasp.get('status') != 'available' or not grasp.get('raised') or
-                not grasp.get('ready')):
-            raise ValueError('destination_grasp_not_ready')
-        if (frame.get('status') != 'tracked_local_segment' or
-                not 0 <= now_s - frame.get('time_s', float('nan')) <= .150001):
-            raise ValueError('destination_motion_unavailable')
-        if self.segment is not None and frame.get('segment') != self.segment:
-            raise ValueError('destination_motion_unavailable')
-        direction = destination.get('direction_segment_xy')
-        translation = frame.get('translation_segment_m')
-        if (not isinstance(direction, (list, tuple)) or len(direction) != 2 or
-                not isinstance(translation, (list, tuple)) or len(translation) != 3 or
-                any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
-                    for v in [*direction, *translation])):
-            raise ValueError('destination_geometry_invalid')
-        norm = math.hypot(*direction)
-        if not .5 <= norm <= 1.1:
-            raise ValueError('destination_direction_invalid')
-        return sample
+            sample=self.observe(now_s);d,g,f=sample['destination'],sample['grasp'],sample['frame']
+            if d.get('status')!='observed_destination_candidate':self.fail('destination_observation_unavailable')
+            stamp=d.get('observed_at_s')
+            if not number(stamp) or not 0<=now_s-stamp<=.150001:self.fail('destination_observation_stale')
+            if (f.get('status')!='tracked_local_segment' or not number(f.get('time_s'))
+                    or abs(f['time_s']-stamp)>1e-8 or f.get('segment') is None):self.fail('destination_motion_unavailable')
+            rigid(f['body_in_segment'])
+            nav=sample['navigation']
+            if (not number(nav.get('time_s')) or abs(nav['time_s']-now_s)>1e-8
+                    or not number(nav.get('yaw_segment_rad')) or nav.get('segment')!=f['segment']):
+                self.fail('destination_navigation_frame_unavailable')
+            if (d.get('direction_status')!='available' or d.get('segment_id')!=f['segment']
+                    or type(d.get('view_epoch')) is not int):self.fail('destination_geometry_invalid')
+            if self.segment is not None and (f['segment']!=self.segment or d['view_epoch']!=self.epoch):self.fail('destination_identity_changed')
+            direction=d.get('direction_segment_xy')
+            if not isinstance(direction,(list,tuple)) or len(direction)!=2 or not all(number(x) for x in direction):self.fail('destination_geometry_invalid')
+            length=math.hypot(*direction)
+            if not .999<=length<=1.001:self.fail('destination_geometry_invalid')
+            if self.direction is not None and sum(a*b/length for a,b in zip(self.direction,direction))<math.cos(.2):self.fail('destination_direction_changed')
+            if (g.get('status')!='available' or g.get('raised') is not True
+                    or g.get('opposing_near_wrists') is not True or g.get('attitude_ok') is not True):self.fail('destination_grasp_lost')
+            if not number(g.get('time_s')) or abs(g['time_s']-stamp)>1e-8:self.fail('destination_measurement_time_mismatch')
+            if self.last_camera is not None and stamp<self.last_camera:self.fail('destination_camera_time_reversed')
+            return sample
+        except (KeyError,TypeError,ValueError) as error:
+            self.fail(self.failure or (str(error) if isinstance(error,ValueError) else 'destination_observation_invalid'))
 
-    def _progress(self, sample):
-        translation = sample['frame']['translation_segment_m']
-        delta = [translation[i] - self.anchor_translation[i] for i in range(3)]
-        return sum(delta[i] * self.direction[i] for i in range(2))
+    def progress(self,sample):
+        p=[row[3] for row in sample['frame']['body_in_segment'][:3]]
+        value=sum((p[i]-self.anchor[i])*self.direction[i] for i in range(2))
+        if value<-.03 or value>self.distance+.03:self.fail('destination_approach_overshoot')
+        # A straight short segment cannot silently become lateral wandering.
+        lateral=abs((p[0]-self.anchor[0])*self.direction[1]-(p[1]-self.anchor[1])*self.direction[0])
+        if lateral>.03:self.fail('destination_lateral_drift')
+        return value
 
-    def command(self, now_s, previous):
-        sample = self.sample(now_s)
-        if now_s < self.previous or now_s - self.previous > .150001:
-            raise ValueError('destination_motion_time_gap')
-        progress = self._progress(sample)
-        remaining = self.distance - progress
-        if progress < -.03 or progress > self.distance + .03:
-            raise ValueError('destination_approach_overshoot')
-        desired = 0.0 if remaining <= .02 else .08
-        dt = min(now_s - self.previous, .02)
-        self.speed = max(0.0, min(desired, self.speed + .30 * dt))
-        self.previous = now_s
-        action = list(previous)
-        action[43:46] = [self.speed * self.direction[0], self.speed * self.direction[1], 0.0]
-        self.history.append((now_s, progress))
-        self.phase = 'destination_settle' if desired == 0.0 else 'destination_approach'
+    def command(self,now_s,previous):
+        old_time=self.command_time;sample=self.sample(now_s);progress=self.progress(sample)
+        self.command_time=now_s
+        if len(previous)!=50 or not all(number(x) for x in previous):self.fail('destination_action_invalid')
+        action=list(previous);action[43:46]=[0.,0.,0.]
+        ready=self.wrist_ready()
+        if not ready and now_s-self.started>.150001:self.fail('destination_wrist_handoff_timeout')
+        remaining=self.distance-progress
+        if ready and remaining>.02:
+            self.speed=min(.08,self.speed+.30*min(now_s-old_time,.02))
+            yaw=sample['navigation']['yaw_segment_rad']
+            # Native navigation XY follows current IMU pelvis heading. The
+            # camera-time stance rotation must not stand in for current heading.
+            c,s=math.cos(yaw),math.sin(yaw);x,y=self.direction
+            action[43:46]=[self.speed*(c*x+s*y),self.speed*(-s*x+c*y),0.]
+            self.phase='destination_approach';self.zero_since=None;self.settled_since=None
+        else:
+            self.speed=0.;self.phase='destination_settle' if ready else 'destination_wrist_handoff'
+            if self.zero_since is None:self.zero_since=now_s
+        try:certificate=self.screen(now_s,sample,list(action))
+        except Exception:self.fail('destination_path_unavailable')
+        if (not isinstance(certificate,dict) or certificate.get('status')!='clear'
+                or not number(certificate.get('observed_at_s'))
+                or abs(certificate['observed_at_s']-sample['destination']['observed_at_s'])>1e-8):self.fail('destination_path_unavailable')
+        self.latest=dict(time_s=now_s,observed_at_s=sample['destination']['observed_at_s'],
+            progress_m=progress,target_m=self.distance,phase=self.phase)
         return action
 
-    def update(self, now_s):
-        sample = self.sample(now_s)
-        progress = self._progress(sample)
-        self.history.append((now_s, progress))
-        if now_s - self.started > 12:
-            raise ValueError('destination_approach_timeout')
-        if progress < -.03 or progress > self.distance + .03:
-            raise ValueError('destination_approach_overshoot')
-        if progress >= self.distance - .02:
-            self.phase = 'destination_settle'
-            if now_s - self.started >= 1.0 and sample['grasp']['ready']:
-                return 'completed', 'destination_approach_and_hold'
+    def update(self,now_s):
+        sample=self.sample(now_s);progress=self.progress(sample);stamp=sample['destination']['observed_at_s']
+        if self.latest is None or not 0<=now_s-self.latest['time_s']<=.020001:
+            self.fail('destination_command_stale')
+        if stamp==self.last_camera:return None
+        continuous=self.last_camera is not None and 0<stamp-self.last_camera<=.150001
+        slow=(continuous and abs(progress-self.last_progress)/(stamp-self.last_camera)<=.02)
+        settled=(self.phase=='destination_settle' and self.zero_since is not None
+            and stamp>=self.zero_since and abs(progress-self.distance)<=.02
+            and sample['grasp']['ready'] is True and self.wrist_ready() and slow)
+        self.settled_since=(self.settled_since if self.settled_since is not None else stamp) if settled else None
+        self.last_camera,self.last_progress=stamp,progress
+        if self.settled_since is not None and stamp-self.settled_since>=1.-1e-8:
+            return 'completed','destination_approach_and_hold'
         return None
 
-    def measurements(self, now_s):
-        sample = self.sample(now_s)
-        return dict(time_s=now_s, progress_m=self._progress(sample), target_m=self.distance,
-                    direction_segment_xy=list(self.direction), phase=self.phase)
+    def measurements(self,now_s):
+        return dict(self.latest or {},settled_since_s=self.settled_since,failure=self.failure)

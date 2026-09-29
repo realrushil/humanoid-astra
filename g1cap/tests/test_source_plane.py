@@ -62,8 +62,9 @@ class TrackingTests(unittest.TestCase):
  def test_imprecise_box_height_preserves_fresh_obstacle_geometry(self):
   self.box['center_camera_m']=[10.,0.,.9]
   result=self.observe(.1,self.points)
-  self.assertEqual(result['status'],'unavailable')
-  self.assertEqual(result['reason'],'source_height_precision_insufficient')
+  self.assertEqual(result['status'],'observed_candidate')
+  self.assertGreater(result['gap_error_m'],.01)
+  self.assertAlmostEqual(result['gap_error_m'],result['prediction_quality']['height_perturbation_m'])
   self.assertEqual(self.track.geometry['status'],'observed_candidate')
   self.assertGreater(self.track.geometry['prediction_quality']['height_perturbation_m'],.01)
   self.assertEqual(self.track.geometry['observed_at_s'],.1)

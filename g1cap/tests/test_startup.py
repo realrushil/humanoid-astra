@@ -47,6 +47,21 @@ class StartupContactTests(unittest.TestCase):
         other=dict(sim_time=4,forbidden_contacts=[dict(table,body2='box')])
         self.assertEqual(latch_environment_contact(first,other),first)
 
+    def test_all_forbidden_contacts_latch_for_session_scoring(self):
+        from g1cap.sonic_sim import latch_forbidden_contact
+        self_touch=dict(body1='hand',body2='hip',self_contact=True,distance=-.003)
+        table=dict(body1='ankle',body2='table',self_contact=False,normal_force=140.8)
+        self.assertIsNone(latch_forbidden_contact(None,dict(sim_time=.295,
+                         no_support=False,forbidden_contacts=[self_touch])))
+        first=latch_forbidden_contact(None,dict(sim_time=2.,no_support=True,
+                                                 forbidden_contacts=[self_touch]))
+        self.assertEqual(first,dict(sim_time=2.,contact=self_touch))
+        self.assertEqual(latch_forbidden_contact(first,dict(sim_time=3.,no_support=True,
+                                                          forbidden_contacts=[table])),first)
+        self.assertEqual(latch_forbidden_contact(None,dict(sim_time=4.,no_support=True,
+                                                         forbidden_contacts=[table])),
+                         dict(sim_time=4.,contact=table))
+
     def test_runtime_rejects_startup_contact_even_after_contact_disappears(self):
         from g1cap.sonic_runtime import check_startup_contact
         check_startup_contact(dict(first_environment_contact=None))

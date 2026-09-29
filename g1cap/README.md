@@ -2,7 +2,13 @@
 
 A research implementation that lets an ordinary coding agent write and revise Python programs for a **simulated Unitree G1**. Programs call bounded robot tools; a trusted runtime owns physics, controller execution, recording and independent scoring. Revisions share one live episode, including elapsed time and previous action consequences.
 
-This folder is a portable source snapshot of the CAP implementation, prepared on **2026-09-18**. It contains our Python code, calibration assets, tests, examples and selected video evidence. It sits alongside the existing `humanoid-astra` server/client implementation and has no integration dependency on those sibling files. Python module names and controller code are preserved.
+This folder is a portable source snapshot of the CAP implementation, refreshed on **2026-09-29**. It contains our Python code, calibration assets, tests, examples and selected video evidence. It sits alongside the existing `humanoid-astra` server/client implementation and has no integration dependency on those sibling files. Python module names and controller code are preserved.
+
+## Current development track
+
+`control_track: sensor_state_v2` selects the current Arena sensor-estimate path. [`sensor_state.py`](g1cap/sensor_state.py) and [`box_tracker.py`](g1cap/box_tracker.py) build observations from simulator-derived camera, encoder and IMU packets; [`control_v2.py`](g1cap/control_v2.py) runs bounded grasp, walk, approach and placement skills. The contract is [`arena_v2.md`](g1cap/tool_docs/arena_v2.md). Pickup across sizes and masses and a complete sensor-based transfer remain open. The two videos below are historical evidence from the earlier sensor path.
+
+For the current source, start with [the package guide](g1cap/README.md) and [the walkthrough](docs/code-walkthrough.md). SONIC's persistent walking/posture/reaching path and the earlier Arena paths are retained separately. Simulation success does not establish hardware readiness.
 
 ## What currently works
 
@@ -11,7 +17,7 @@ This folder is a portable source snapshot of the CAP implementation, prepared on
 | Synthetic mock | Local Python backend for harness and worker checks | No physics; useful for software plumbing only |
 | SONIC | MuJoCo + released SONIC controller/planner | Walking, posture and contact-free reaching; simulator-derived observations |
 | Arena privileged baseline | Isaac Lab/Arena + GR00T acquisition + HOMIE + bounded manipulation controllers | Earlier nominal transfer gate passed 3/3; 6/10 task definitions passed the frozen sweep/retry. Not a sensor-only result |
-| Arena sensor development | RGB-D, encoder/IMU estimates, visual grasp checks and coupled wrist holding | One developer-written pickup → raise → retreat → turn → hold sequence completed. Full sensor-based destination transfer remains unfinished |
+| Arena sensor development | Current v2 estimates and bounded skills; earlier coupled wrist path retained | One earlier developer-written pickup → raise → retreat → turn → hold sequence completed. Full sensor-based destination transfer remains unfinished |
 
 Watch the [successful sensor component sequence](evidence/sensor-sequence.mp4) and the [later pickup failure](evidence/pickup-failure.mp4). Both are **previously recorded physics**, not new runs or reconstructed motion. [Evidence notes](evidence/README.md) explain their scope. A tool returning `completed` does not establish whole-task success.
 

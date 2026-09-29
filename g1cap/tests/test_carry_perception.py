@@ -9,6 +9,25 @@ except ImportError:
 
 @unittest.skipIf(np is None,'NumPy runtime required')
 class CarryPerceptionTests(unittest.TestCase):
+    def test_retention_feedback_expires_and_cannot_cross_box_identity(self):
+        from g1cap.arena_perception import ArenaBoxPerception
+        x=ArenaBoxPerception(None)
+        x.latest_retention=dict(status='available',time_s=1.,track_epoch=1,retained=True,settled=True,pickup_proven=False)
+        x.track.observe=lambda now:dict(status='accepted',track_epoch=1)
+        self.assertTrue(x.retention_feedback(1.1)['retained'])
+        for t in (.9,1.16,float('nan')):
+            self.assertEqual(x.retention_feedback(t)['status'],'unavailable')
+        x.track.observe=lambda now:dict(status='accepted',track_epoch=2)
+        self.assertEqual(x.retention_feedback(1.04)['status'],'unavailable')
+        x.track.observe=lambda now:dict(status='unavailable')
+        self.assertEqual(x.retention_feedback(1.04)['status'],'unavailable')
+
+    def test_acquisition_commit_clears_independent_retention(self):
+        x=self.frontend()
+        x.latest_retention=dict(status='available',time_s=1.,retained=True,settled=True)
+        x.commit_acquisition(object(),dict(status='available',ready=False,gap_reference='observed_under_box_plane'))
+        self.assertEqual(x.latest_retention['status'],'unavailable')
+
     def frontend(self):
         from g1cap.arena_perception import ArenaBoxPerception
         from g1cap.carry_frame import FloorCarryFrame
@@ -28,6 +47,9 @@ class CarryPerceptionTests(unittest.TestCase):
             box=dict(status='accepted',center_camera_m=[0,0,.9],axes_camera=np.eye(3).tolist(),dimensions_m=[.2]*3),
             initial=dict(status='observed_candidate',normal_camera=[0,0,1],offset_m=-.7,gap_m=.1),
             points=points,floor_points=floor,packet={},calibration={})
+        frontend.carry_seed.update(relative=dict(box_center_pelvis_m=[0,0,.9],
+            box_axes_pelvis=np.eye(3).tolist(),wrist_positions_pelvis_m=dict(left=[0,.25,.9],right=[0,-.25,.9]),
+            box_center_wrist_m=dict(left=[0,-.25,0],right=[0,.25,0])),up_body=[0,0,1])
         return frontend
 
     def test_carry_reference_requires_fresh_observation_and_explicit_start(self):
@@ -47,12 +69,47 @@ class CarryPerceptionTests(unittest.TestCase):
         with self.assertRaises(ValueError):frontend.begin_carry(1.)
         self.assertIsNone(frontend.source_plane)
 
-    def test_acquisition_reset_discards_carry_plane_but_not_scene_history(self):
+    def test_prepared_source_does_not_replace_active_identity_or_scene_history(self):
         frontend=self.frontend();motion=frontend.motion
         frontend.begin_carry(1.)
-        frontend.begin_acquisition()
-        self.assertIsNone(frontend.source_plane)
+        original=frontend.source_plane
+        candidate=frontend.prepare_source(1.)
+        self.assertIsNot(candidate,original)
+        self.assertIs(frontend.source_plane,original)
+        self.assertTrue(candidate.initialized)
         self.assertIs(frontend.motion,motion)
+
+    def test_failed_source_preparation_preserves_prior_identity(self):
+        frontend=self.frontend();frontend.begin_carry(1.)
+        original=frontend.source_plane
+        with self.assertRaises(ValueError):frontend.prepare_source(1.2)
+        self.assertIs(frontend.source_plane,original)
+
+    def test_installing_source_does_not_relabel_previous_camera_measurement(self):
+        frontend=self.frontend()
+        frontend.track.observe=lambda now:dict(status='accepted',age_s=0.)
+        frontend.latest=dict(status='available',time_s=1.,gap_m=.1)
+        frontend.begin_carry(1.)
+        self.assertEqual(frontend.feedback(1.)['gap_reference'],'observed_under_box_plane')
+
+    def test_explicit_reacquisition_requires_fresh_strict_support_after_identity_loss(self):
+        frontend=self.frontend();frontend.begin_carry(1.)
+        old=frontend.source_plane;old.plane=None
+        frontend.latest=dict(status='unavailable',reason='table_track_unavailable')
+        # The pickup preview does not repair the failed active tracker.
+        grasp=frontend.acquisition_feedback(1.04)
+        self.assertEqual(grasp['status'],'available')
+        self.assertTrue(grasp['opposing_near_wrists'])
+        self.assertFalse(grasp['ready'])
+        self.assertIs(frontend.source_plane,old);self.assertIsNone(old.plane)
+        self.assertEqual(frontend.acquisition_feedback(1.2)['status'],'unavailable')
+        source=frontend.prepare_source(1.04)
+        frontend.commit_acquisition(source,grasp)
+        self.assertIs(frontend.source_plane,source)
+        self.assertEqual(frontend.latest['status'],'available')
+        self.assertFalse(frontend.latest['ready'])
+        frontend.carry_seed['initial']={'status':'unavailable'}
+        self.assertEqual(frontend.acquisition_feedback(1.04)['status'],'unavailable')
 
     def test_initial_table_must_match_the_level_floor_model(self):
         frontend=self.frontend()

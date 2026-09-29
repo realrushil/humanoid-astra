@@ -12,6 +12,6 @@
 
 **Side effects and continuation:** Idle does not freeze joints. Successful stationary stop retains the supervised reference; unsuccessful stationary stop releases it. Not a hardware emergency stop.
 
-**Evidence and limits:** Stopping delay and drift remain. Measured nominal stops after short forward commands can travel tens of centimetres before settling; net displacement can also reverse sign across command histories. Do not treat idle as a position hold or use a fixed stopping-distance assumption. After sonic_motion, stop uses navigation idle because motion references have been released.
+**Evidence and limits:** Stopping delay and drift remain. Measured nominal stops after short forward commands can travel tens of centimetres before settling; net displacement can also reverse sign across command histories. In lateral diagnostics, measured body speed increased after idle was published, in both directions. Do not treat idle as a position hold or use a fixed stopping-distance assumption. Inspect the returned measured velocity and position; a timeout or cancellation does not establish settling. After sonic_motion, stop uses navigation idle because motion references have been released. [Recorded lateral stop evidence](../../runs/lateral-gait-stop-envelope-2026-09-25/report.md).
 
 See [shared assumptions](README.md).

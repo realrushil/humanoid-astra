@@ -38,6 +38,26 @@ class SceneWristHoldTests(unittest.TestCase):
             expected=pin.SE3(rotation,np.zeros(3))*b;expected.translation[2]+=.03
             np.testing.assert_allclose(a.homogeneous,expected.homogeneous,atol=1e-12)
 
+    def test_feasible_restore_uses_existing_adjustment_envelope_during_solve(self):
+        # Previously an unconstrained candidate exceeded left wrist pitch by
+        # 0.000638 rad, although redundancy permits the same target in bounds.
+        import json
+        case=json.loads((Path(__file__).parent/'fixtures/wrist_restore_sensor_case.json').read_text())
+        hold=self.mod.SceneWristHold(self.model,case['names'],case['anchor_packet'],
+            case['anchor_motion'],case['reference'],frame_key='body_in_control_frame')
+        hold.solution=np.array(case['previous_goal'])-hold.preload
+        hold.updated_at=case['previous_time_s']
+        initial=hold.initial.copy();preload=hold.preload.copy()
+        hold.raise_targets(case['lift_offset_m'])
+        result=hold.update(case['packet'],case['motion'])
+        self.assertLessEqual(result['max_joint_adjustment_rad'],.35)
+        self.assertLess(result['max_position_error_m'],.002)
+        self.assertLess(result['max_rotation_error_rad'],.02)
+        np.testing.assert_array_equal(hold.initial,initial)
+        np.testing.assert_array_equal(hold.preload,preload)
+        self.assertTrue(np.all(hold.solution>=hold.lo))
+        self.assertTrue(np.all(hold.solution<=hold.hi))
+
     def test_heading_follow_requires_active_synchronized_floor_owner(self):
         hold=self.controller()
         with self.assertRaises(ValueError):hold.follow_heading(self.motion,[0,0,1])
