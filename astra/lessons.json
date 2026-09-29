@@ -1,0 +1,68 @@
+[
+ {
+  "id": 1,
+  "lesson": "When the body height is lowered (seen at -0.25), base walking commands do nothing and time out because the walking controller does not step at that height; raise height to 0 before any base move.",
+  "confidence": "should",
+  "evidence": [
+   "call 8: 'motion TIMED OUT... base_yaw=+49.8deg... base did not move (the walking controller does not step at this body height)'; call 9 height=0, then call 10 same base_yaw completed with error 5.4deg"
+  ],
+  "count": 2,
+  "added": "2026-09-24 23:56"
+ },
+ {
+  "id": 2,
+  "lesson": "When an arm is in external contact during a base walk or a height change, that arm stops and backs off (force limit) and the base walk may time out. Later arm commands then 'complete' in about 0 s sim without moving, because the contact still blocks the arm. Move the base or height away from the contact before retrying the arm.",
+  "confidence": "should",
+  "evidence": [
+   "calls 12,14,19,35 base moves 'TIMED OUT after 8.0s sim ... external contact: right arm'; calls 13-15 right_x +0.10 right_pitch -26deg unchanged; after base moved away (call 16), call 17 right_x error dropped to +0.03",
+   "call 26: walk TIMED OUT with RIGHT ARM STOPPED. Calls 4 and 29: walk completed despite arm stop/contact. Call 21: height -0.3 gave RIGHT ARM STOPPED, and at call 22 the arm command 'completed after 0.0s sim' with right_z error -0.289m. After height 0 (call 23), call 25 reached its target.",
+   "call 24: height change with contact -> 'RIGHT ARM STOPPED'; call 26: walk TIMED OUT after contact; call 35: hand command 'completed after 0.0s sim' with right_hand error -0.64 after contact at call 34"
+  ],
+  "count": 3,
+  "added": "2026-09-24 23:56"
+ },
+ {
+  "id": 3,
+  "lesson": "When move_to reports 'motion completed', the target may still be far off (even with very short sim time) because completion only means motion stopped; always read final error/NOT REACHED before acting on the pose.",
+  "confidence": "should",
+  "evidence": [
+   "call 30: 'completed after 0.1s sim' with left_x=-0.217m left_pitch=-53.9deg; call 15: 'completed after 0.1s sim' with right_z=+0.158m",
+   "call 22: 'motion completed after 0.0s sim' with right_z error -0.289m. Call 32: completed with left_z error -0.182m.",
+   "call 10: 'motion completed after 0.5s sim' with right_x error -0.333m; call 22: completed with right_x +0.124m"
+  ],
+  "count": 4,
+  "added": "2026-09-24 23:56"
+ },
+ {
+  "id": 4,
+  "lesson": "When hand pitch is commanded while standing, it often ends about 10+ degrees off (roll and yaw also drift), because the arm cannot fully reach the target orientation. Crouching does not necessarily make it worse. Always check the reported pitch error before relying on hand orientation.",
+  "confidence": "should",
+  "evidence": [
+   "call 6 height -0.25: 'NOT REACHED left_roll +10deg, left_pitch +13deg'; call 21 height -0.3: 'left_roll +12deg, left_pitch +12deg, left_yaw +14deg'",
+   "height 0: right_pitch -12deg (call 14), -17deg (call 17), -9deg (call 19). Crouched: left_pitch +16deg at height -0.15 (call 31) and +37deg at height -0.35 (call 33).",
+   "call 5 pitch -14.2deg, call 13 -11.3deg, call 25 -15.3deg (standing); call 21 crouched at -0.3, pitch only -1.4deg"
+  ],
+  "count": 2,
+  "added": "2026-09-24 23:56"
+ },
+ {
+  "id": 5,
+  "lesson": "When a pure in-place base_yaw turn is commanded (seen at 0.75 and 1.5 rad), it may time out at 8 s with a few degrees still left, because the turning controller does not converge on its own. Check the yaw error; a combined x/y/yaw walk completed instead (untested beyond these cases).",
+  "confidence": "may",
+  "evidence": [
+   "call 15: 'motion TIMED OUT after 8.0s sim... base_yaw=-3.6deg'; call 28: TIMED OUT, base_yaw=-4.8deg; call 17: combined walk completed, yaw -1.9deg"
+  ],
+  "count": 2,
+  "added": "2026-09-25 00:27"
+ },
+ {
+  "id": 6,
+  "lesson": "When a hand open (1) or close (0) command is given, the fingers often stop short of the command even with nothing held, as the result reports ('fingers stopped short'). Read the hand error before assuming the hand is fully open or closed.",
+  "confidence": "should",
+  "evidence": [
+   "call 21 right_hand -0.17; call 23 right_hand +0.35; call 27 left_hand -0.31; call 29 left_hand +0.25"
+  ],
+  "count": 2,
+  "added": "2026-09-25 00:27"
+ }
+]

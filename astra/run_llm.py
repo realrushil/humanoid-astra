@@ -25,6 +25,7 @@ PRICES = {
     "claude-sonnet-5": (2.0, 10.0),
     "claude-sonnet-4-6": (3.0, 15.0),
     "gpt-6-astra": (10.0, 50.0),  # OpenAI API list price, Sept 2026
+    "claude-opus-5-5": (4.0, 20.0),  # Bedrock offer rate card; claude-cli runs use the CLI's own cost estimate instead
 }
 DEFAULT_PRICE = (3.0, 15.0)  # used (with a warning) when the model id matches nothing above
 IMAGE_TOKENS = 320 * 240 // 750  # rough vision cost of one frame, only used by the fake client
@@ -33,11 +34,39 @@ CAMERAS = [("head", "head camera, forward-looking, mounted on the torso"),
            ("body_map", "top-down body map (not a camera: head image re-projected onto the plane at hand height, pelvis frame)")]
 KEEP_FIRST_TURNS, KEEP_LAST_TURNS, KEEP_IMAGE_OBS = 4, 10, 2
 TASK = "Pick up the box from the table in front of you and place it on the other table."
+PLAYGROUND_TASK = ("Practice session: there is nothing to complete. Work in short experiments: state a small goal you are unsure your body "
+                   "can achieve (any movement or interaction your body allows), try it, then say what actually "
+                   "happened and whether it matched your expectation. Prefer goals whose outcome you cannot predict; spend at most about 8 "
+                   "calls on one experiment, then move on. Do not repeat an experiment whose result you have already seen once: after a "
+                   "surprise, change something you have not varied yet (orientation, height, a different object) or move on. Include at "
+                   "least one experiment that touches or moves a movable object. Coverage: your notes list every kind of action you have (each hand's "
+                   "open/close, hand orientation, height, walking, turning, every tool); over the session exercise each kind at least once and "
+                   "prefer kinds you have not tried yet. Call done(summary) when you have finished practising.")
+
+
+def load_memory(path):
+    """Lessons written by reflect.py: [{id, lesson, confidence, count, evidence}], injected verbatim as guidance."""
+    if not path:
+        return []
+    if not os.path.exists(path):
+        print(f"WARNING: --memory {path} does not exist; running without lessons", flush=True)
+        return []
+    with open(path) as f:
+        return json.load(f)
+
+
+def memory_text(lessons):
+    if not lessons:
+        return ""
+    lines = [f"{i + 1}. [{m.get('confidence', 'may')}] {m['lesson']}" for i, m in enumerate(lessons)]
+    return ("\n\nWhat I learned about my own body in earlier sessions. These are guidance, not rules, and some may be wrong or too broad: "
+            "when a lesson would make you give up or skip an approach, a cheap probe beats trusting it.\n"
+            + "\n".join(lines))
 SYSTEM = """You control a simulated humanoid robot through tool calls. Each turn you get camera images, the current hand
 poses and base odometry, and the result of your previous call. Make small, deliberate motions and re-check the
 observation after each one. In a single move_to call either walk (base_*) or move the hands, never both. Call
 exactly one tool per turn; always fill in `note` with what you see and why you chose the motion, in at most two
-short sentences. You have a budget of {n} tool calls; call done(summary) when the box rests on the other table, or give_up(reason) if stuck.
+short sentences. You have a budget of {n} tool calls; call done(summary) when {done_when}, or give_up(reason) if stuck.
 Name base_x/base_y/base_yaw only when you intend to walk or turn; otherwise leave them out so the base stands still.
 measure(camera, x, y) tells you exactly where a pixel is in 3D and how far it is from each hand; it costs a call but no motion.
 
@@ -53,7 +82,8 @@ def price_for(model):
     return DEFAULT_PRICE
 
 
-def build_tools(bounds):
+def build_tools(bounds, cameras=("head", "left_wrist", "right_wrist"), image_size=(320, 240)):
+    w, h = image_size
     props = {n: {"type": "number", "minimum": round(lo, 3), "maximum": round(hi, 3)} for n, (lo, hi) in bounds.items()}
     return [
         {"toolSpec": {"name": "move_to", "description": (
@@ -68,12 +98,12 @@ def build_tools(bounds):
                          "description": "At most two short sentences (under 40 words): what you see and why this motion."}},
                 "required": ["targets", "note"]}}}},
         {"toolSpec": {"name": "measure", "description": (
-            "Measure where something is: give a pixel (x right, y down, origin top-left) in one of the 320x240 camera images "
+            f"Measure where something is: give a pixel (x right, y down, origin top-left) in one of the {w}x{h} camera images "
             "and get back that point in the pelvis frame plus its offset from each hand's grasp point. The robot does not move. "
             "Use it before reaching or walking to know how far things are."),
             "inputSchema": {"json": {"type": "object", "properties": {
-                "camera": {"type": "string", "enum": ["head", "left_wrist", "right_wrist"]},
-                "x": {"type": "integer", "minimum": 0, "maximum": 319}, "y": {"type": "integer", "minimum": 0, "maximum": 239},
+                "camera": {"type": "string", "enum": list(cameras)},
+                "x": {"type": "integer", "minimum": 0, "maximum": w - 1}, "y": {"type": "integer", "minimum": 0, "maximum": h - 1},
                 "label": {"type": "string", "description": "What you are pointing at, a few words."}},
                 "required": ["camera", "x", "y", "label"]}}}},
         {"toolSpec": {"name": "done", "description": "Declare the task complete.",
@@ -195,6 +225,71 @@ class OpenAIClient:
                 raise RuntimeError(f"OpenAI HTTP {e.code}: {detail}") from None
 
 
+class ClaudeCLIClient:
+    """Claude via the local `claude -p` CLI (Claude Code subscription, no API key) behind the same Converse shape.
+    Each call is stateless: the trimmed history is flattened into one user message (images inline) and the tool call
+    comes back as --json-schema structured output {"call": {"name": ..., "input": ...}}. Cost is the CLI's API-price
+    estimate; subscription usage is not billed per call."""
+
+    def __init__(self, model, effort=None):
+        import tempfile
+        self.model, self.effort, self.n = model, effort, 0
+        self.cwd = tempfile.mkdtemp(prefix="claude_cli_")  # empty cwd: no CLAUDE.md / project settings picked up
+        self.env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_USE_BEDROCK")}
+
+    @staticmethod
+    def _schema(request):
+        calls = [{"type": "object", "properties": {"name": {"const": t["toolSpec"]["name"]}, "input": t["toolSpec"]["inputSchema"]["json"]},
+                  "required": ["name", "input"], "description": t["toolSpec"]["description"]} for t in request["toolConfig"]["tools"]]
+        return {"type": "object", "properties": {"call": {"anyOf": calls}}, "required": ["call"]}
+
+    @staticmethod
+    def _to_blocks(request):
+        import base64
+        blocks = [{"type": "text", "text": "Transcript of the episode so far. You are the assistant; your earlier tool calls are shown as "
+                                           "'Tool call'. Give your next tool call as the structured output {call: {name, input}}."}]
+        for m in request["messages"]:
+            blocks.append({"type": "text", "text": "=== assistant (you) ===" if m["role"] == "assistant" else "=== user ==="})
+            for b in m["content"]:
+                if "image" in b:
+                    blocks.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
+                                                               "data": base64.b64encode(b["image"]["source"]["bytes"]).decode()}})
+                elif "toolUse" in b:
+                    blocks.append({"type": "text", "text": f"Tool call: {b['toolUse']['name']}({json.dumps(b['toolUse']['input'])})"})
+                elif "toolResult" in b:
+                    blocks.append({"type": "text", "text": "Tool result: " + " ".join(c.get("text", "") for c in b["toolResult"]["content"])})
+                elif b.get("text", "").strip():
+                    blocks.append({"type": "text", "text": b["text"]})
+        return blocks
+
+    def converse(self, request):
+        import subprocess
+        cmd = ["claude", "-p", "--model", self.model, "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
+               "--tools", "", "--setting-sources", "", "--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands",
+               "--system-prompt", request["system"][0]["text"], "--json-schema", json.dumps(self._schema(request))]
+        if self.effort:
+            cmd += ["--effort", self.effort]
+        stdin = json.dumps({"type": "user", "message": {"role": "user", "content": self._to_blocks(request)}}) + "\n"
+        for attempt in range(3):
+            p = subprocess.run(cmd, input=stdin, capture_output=True, text=True, cwd=self.cwd, env=self.env, timeout=900)
+            res = next((json.loads(l) for l in p.stdout.splitlines() if l.startswith("{") and json.loads(l).get("type") == "result"), None)
+            if res and not res.get("is_error") and res.get("structured_output"):
+                break
+            detail = (res or {}).get("result") or p.stderr[-400:] or p.stdout[-400:]
+            if attempt == 2:
+                raise RuntimeError(f"claude -p failed (rc={p.returncode}): {detail}")
+            print(f"  claude -p failed (rc={p.returncode}); retrying in {10 * 2 ** attempt}s: {str(detail)[:160]}", flush=True)
+            time.sleep(10 * 2 ** attempt)
+        self.n += 1
+        call = res["structured_output"].get("call") or {}
+        content = [{"toolUse": {"toolUseId": f"cli-{self.n}", "name": call.get("name", "?"), "input": call.get("input") or {}}}]
+        u = res.get("usage", {})
+        usage = {"inputTokens": u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0) + u.get("cache_read_input_tokens", 0),
+                 "outputTokens": u.get("output_tokens", 0), "cachedInputTokens": u.get("cache_read_input_tokens", 0)}
+        return {"output": {"message": {"role": "assistant", "content": content}}, "usage": usage, "stopReason": "tool_use",
+                "cost_usd": res.get("total_cost_usd")}
+
+
 class FakeClient:
     """Replays scripted_policy.scripted_plan (closed-loop on get_state) as tool calls; fakes token counts."""
 
@@ -314,7 +409,7 @@ class Episode:
     def account(self, resp, latency, summary):
         u = resp.get("usage", {})
         i, o = int(u.get("inputTokens", 0)), int(u.get("outputTokens", 0))
-        cost = (i * self.price[0] + o * self.price[1]) / 1e6
+        cost = resp["cost_usd"] if resp.get("cost_usd") is not None else (i * self.price[0] + o * self.price[1]) / 1e6
         self.usage["input"] += i
         self.usage["output"] += o
         self.usage["cost"] += cost
@@ -330,16 +425,32 @@ class Episode:
     # ---- main loop
     def run(self):
         a = self.args
+        record = f"{a.box_root}/{self.dir}/record" if a.box else os.path.abspath(os.path.join(self.dir, "record"))
+        self.sim.reset(a.seed, record_dir=record)  # before describe(): the embodiment numbers are computed from the reset pose
         desc = self.sim.describe(marks=not a.no_marks, body_map=a.body_map)
-        self.system = SYSTEM.format(n=a.max_calls, notes=desc["text"])
-        self.tools = build_tools(desc["bounds"])
-        self.sim.reset(a.seed, record_dir=os.path.abspath(os.path.join(self.dir, "record")))
-        self.log({"type": "meta", "seed": a.seed, "model": a.model, "dry_run": a.dry_run, "max_calls": a.max_calls,
+        # the Isaac Lab server has one fixed task; other backends (SIMPLE) name theirs in describe()
+        self.task = desc.get("instruction") or TASK
+        done_when = "the task is complete" if desc.get("instruction") else "the box rests on the other table"
+        if a.playground:
+            self.task, done_when = PLAYGROUND_TASK, "you have finished practising"
+        self.memory = load_memory(a.memory)
+        self.system = SYSTEM.format(n=a.max_calls, notes=desc["text"], done_when=done_when) + memory_text(self.memory)
+        self.tools = build_tools(desc["bounds"], **{k: desc[k] for k in ("cameras", "image_size") if k in desc})
+        self.extra_tools = {t["toolSpec"]["name"] for t in desc.get("extra_tools", [])}  # backend-specific, dispatched by name
+        self.tools += desc.get("extra_tools", [])
+        import hashlib
+        code_hash = hashlib.sha1(b"".join(open(f, "rb").read() for f in ["run_llm.py", "sim_server_simple.py", "sim_server_wbc.py", "reflect.py"]
+                                          if os.path.exists(f))).hexdigest()[:10]
+        st0 = self.sim.get_state()
+        self.box_start = list(st0["box"]["pos"])
+        self.max_lift, self.carried = 0.0, 0.0
+        self.log({"type": "meta", "seed": a.seed, "model": a.model, "dry_run": a.dry_run, "max_calls": a.max_calls, "code_hash": code_hash,
+                  "playground": a.playground, "memory": a.memory, "memory_lessons": [m["lesson"] for m in self.memory],
                   "max_cost": a.max_cost, "sticky_grasp": desc.get("sticky_grasp"), "started": time.strftime("%Y-%m-%d %H:%M:%S")})
         self.log({"type": "system", "text": self.system})
         self.log({"type": "tools", "tools": self.tools})
         blocks, files, state_text = self.observe(0)
-        self.add("user", [{"text": f"Task: {TASK}"}] + blocks, 0)
+        self.add("user", [{"text": f"Task: {self.task}"}] + blocks, 0)
         self.turns.append({"turn": 0, "images": files, "state": state_text})
         turn, no_tool_streak = 0, 0
         while self.usage["calls"] < a.max_calls:
@@ -373,21 +484,43 @@ class Episode:
                 if no_tool_streak >= 2:
                     self.end_reason = "no tool call after re-prompt"
                     break
-                self.add("user", [{"text": "Respond with exactly one tool call: move_to, done or give_up."}], turn)
+                self.add("user", [{"text": "Respond with exactly one tool call (move_to, measure, done or give_up)."}], turn)
                 rec["result"] = "(no tool call; re-prompted)"
                 continue
             no_tool_streak = 0
             tu, extra = tool_uses[0], tool_uses[1:]
+            try:
+                self._execute(tu, extra, rec, turn)
+            except Exception as e:  # noqa: BLE001 (sim RPC / tunnel failure: end the episode, keep the logs)
+                self.end_reason = f"sim error: {type(e).__name__}: {e}"
+                print(self.end_reason, flush=True)
+                break
+            if self.end_reason:
+                break
+        else:
+            self.end_reason = f"call budget ({a.max_calls}) exhausted"
+        return self.finish()
+
+    def _execute(self, tu, extra, rec, turn):
+        """Run one tool call against the sim and append the result + next observation; sets end_reason to stop."""
+        a = self.args
+        if True:
             rec["tool"] = {"name": tu["name"], "input": tu["input"]}
             rec["note"] = tu["input"].get("note") or tu["input"].get("summary") or tu["input"].get("reason")
             self.log({"type": "tool_call", "call": self.usage["calls"], "name": tu["name"], "input": tu["input"]})
             if tu["name"] in ("done", "give_up"):
                 self.end_reason = f"{tu['name']}: {rec['note']}"
-                break
+                return
             if tu["name"] == "measure":
                 try:
                     r = {}
                     result = self.sim.measure(tu["input"]["camera"], tu["input"]["x"], tu["input"]["y"], tu["input"].get("label", ""))["text"]
+                except Exception as e:  # noqa: BLE001
+                    result, r = f"error: {e}", {}
+            elif tu["name"] in self.extra_tools:
+                try:
+                    r = {}
+                    result = self.sim.call(tu["name"], **tu["input"])["text"]
                 except Exception as e:  # noqa: BLE001
                     result, r = f"error: {e}", {}
             elif tu["name"] != "move_to":
@@ -406,19 +539,18 @@ class Episode:
                       "box_on_floor": r.get("box_on_floor"), "grasp_events": r.get("grasp_events", []), "sim_time": r.get("sim_time")})
             blocks, files, state_text = self.observe(turn)
             st = self.sim.get_state()
+            self.max_lift = max(self.max_lift, float(st["box"]["lift"]))
+            self.carried = max(self.carried, math.dist(st["box"]["pos"][:2], self.box_start[:2]))
             rec.update({"result": result, "images": files, "state": state_text, "stage": st["max_stage"], "sim_time": st["sim_time"]})
             content = [{"toolResult": {"toolUseId": tu["toolUseId"], "content": [{"text": result}]}}]
             content += [{"toolResult": {"toolUseId": e["toolUseId"], "content": [{"text": "ignored: only one tool call per turn"}], "status": "error"}} for e in extra]
             self.add("user", content + blocks, turn)
             if st["fallen"] or r.get("fallen"):
                 self.end_reason = "robot fell"
-                break
-            if st["box_on_floor"] or r.get("box_on_floor"):
+                return
+            if (st["box_on_floor"] or r.get("box_on_floor")) and not a.playground:
                 self.end_reason = "box hit the floor"
-                break
-        else:
-            self.end_reason = f"call budget ({a.max_calls}) exhausted"
-        return self.finish()
+                return
 
     def finish(self):
         st = self.sim.get_state()
@@ -426,18 +558,32 @@ class Episode:
                "success": st["max_stage"] == 4, "calls": self.usage["calls"], "input_tokens": self.usage["input"],
                "output_tokens": self.usage["output"], "est_cost_usd": round(self.usage["cost"], 4),
                "sticky_grasp_fired": any(e["event"] == "attach" for e in st["grasp_events"]), "grasp_events": st["grasp_events"],
-               "fallen": st["fallen"], "box_on_floor": st["box_on_floor"], "end_reason": self.end_reason,
+               "fallen": st["fallen"], "box_on_floor": st["box_on_floor"], "task_success": st.get("task_success"), "end_reason": self.end_reason,
+               "max_lift_cm": round(100 * getattr(self, "max_lift", 0.0), 1), "carried_cm": round(100 * getattr(self, "carried", 0.0), 1),
+               "final_lift_cm": round(100 * float(st["box"]["lift"]), 1),
                "sim_time": st["sim_time"], "wall_time": round(time.time() - self.t_start, 1), "dir": self.dir}
         self.log({"type": "end", **res})
         self.tf.close()
-        try:
-            res["video"] = os.path.basename(make_video(os.path.join(self.dir, "record", "third_person"), os.path.join(self.dir, "episode.mp4")))
-            if self.args.mosaic:  # per-camera mp4s + 2x2 mosaic (head | third-person / left wrist | right wrist)
-                outs = make_episode_videos(os.path.join(self.dir, "record"), os.path.join(self.dir, "episode"))
-                if "mosaic" in outs:
-                    res["video"] = os.path.basename(outs["mosaic"])
-        except Exception as e:  # noqa: BLE001
-            print(f"video encoding failed: {e}", flush=True)
+        if self.args.box:  # sim ran remotely: the recording is on the box, so encode there and pull the episode dir back
+            import subprocess
+            py = (f"from sim_client import make_video, make_episode_videos; d='{self.dir}'; "
+                  f"make_video(d + '/record/third_person', d + '/episode.mp4')"
+                  + ("; make_episode_videos(d + '/record', d + '/episode')" if self.args.mosaic else ""))
+            try:
+                subprocess.run(["ssh", self.args.box, f"cd {self.args.box_root} && python3 -c \"{py}\""], check=True)
+                subprocess.run(["rsync", "-az", f"{self.args.box}:{self.args.box_root}/{self.dir}/", f"{self.dir}/"], check=True)
+                res["video"] = "episode_mosaic.mp4" if self.args.mosaic and os.path.exists(os.path.join(self.dir, "episode_mosaic.mp4")) else "episode.mp4"
+            except Exception as e:  # noqa: BLE001
+                print(f"remote video encoding / pull failed: {e}", flush=True)
+        else:
+            try:
+                res["video"] = os.path.basename(make_video(os.path.join(self.dir, "record", "third_person"), os.path.join(self.dir, "episode.mp4")))
+                if self.args.mosaic:  # per-camera mp4s + 2x2 mosaic (head | third-person / left wrist | right wrist)
+                    outs = make_episode_videos(os.path.join(self.dir, "record"), os.path.join(self.dir, "episode"))
+                    if "mosaic" in outs:
+                        res["video"] = os.path.basename(outs["mosaic"])
+            except Exception as e:  # noqa: BLE001
+                print(f"video encoding failed: {e}", flush=True)
         with open(os.path.join(self.dir, "result.json"), "w") as f:
             json.dump(res, f, indent=1)
         write_html(self.dir, res, self.turns, self.system)
@@ -493,7 +639,14 @@ if __name__ == "__main__":
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--model", default=os.environ.get("MODEL_ID", DEFAULT_MODEL))
     p.add_argument("--region", default=os.environ.get("AWS_REGION", "us-west-2"))
-    p.add_argument("--provider", choices=["auto", "bedrock", "openai"], default="auto", help="auto: gpt-* -> OpenAI API, else Bedrock")
+    p.add_argument("--provider", choices=["auto", "bedrock", "openai", "claude-cli"], default="auto",
+                   help="auto: gpt-* -> OpenAI API, else Bedrock; claude-cli: local `claude -p` (Claude Code subscription)")
+    p.add_argument("--effort", default=None, help="claude-cli only: passed to `claude -p --effort`")
+    p.add_argument("--memory", default=None, help="lessons.json from reflect.py, injected into the system prompt")
+    p.add_argument("--playground", action="store_true", help="free-play session: the practice prompt replaces the task, no task end conditions")
+    p.add_argument("--box", default=None, help="ssh host running the sim (e.g. astra) when this client runs elsewhere: the "
+                   "recording is written there, encoded there, and the episode dir is pulled back")
+    p.add_argument("--box-root", default="/home/ubuntu/astra")
     p.add_argument("--max-calls", type=int, default=40)
     p.add_argument("--max-cost", type=float, default=2.0)
     p.add_argument("--max-tokens", type=int, default=1024)
@@ -511,6 +664,8 @@ if __name__ == "__main__":
     sim.health()
     if args.dry_run:
         llm = FakeClient(sim, args.model)
+    elif args.provider == "claude-cli":
+        llm = ClaudeCLIClient(args.model, args.effort)
     elif args.provider == "openai" or (args.provider == "auto" and args.model.startswith(("gpt-", "o1", "o3", "o4"))):
         llm = OpenAIClient(args.model)
     else:

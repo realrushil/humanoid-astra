@@ -61,23 +61,22 @@ def make_video(frames_dir, out_path, fps=10):
 
 
 def make_episode_videos(record_dir, out_prefix, fps=10):
-    """One mp4 per recorded camera plus a 2x2 mosaic (head | third-person / left wrist | right wrist)."""
+    """One mp4 per recorded camera plus a mosaic of all of them (2x2 when there are four, else side by side)."""
     import os
     import subprocess
 
-    cams = ["head", "third_person", "left_wrist", "right_wrist"]
-    outs = {}
-    for cam in cams:
-        d = os.path.join(record_dir, cam)
-        if os.path.isdir(d) and os.listdir(d):
-            outs[cam] = make_video(d, f"{out_prefix}_{cam}.mp4", fps)
-    if len(outs) == 4:
+    cams = [c for c in ["head", "third_person", "left_wrist", "right_wrist", "side"]
+            if os.path.isdir(os.path.join(record_dir, c)) and os.listdir(os.path.join(record_dir, c))]
+    outs = {cam: make_video(os.path.join(record_dir, cam), f"{out_prefix}_{cam}.mp4", fps) for cam in cams}
+    if len(cams) >= 2:
         inputs = []
         for cam in cams:
             inputs += ["-framerate", str(fps), "-i", f"{record_dir}/{cam}/frame_%05d.jpg"]
         filt = ";".join(f"[{i}:v]scale=480:360,drawtext=text='{cam}':x=8:y=8:fontsize=20:fontcolor=white:box=1:boxcolor=black@0.5[v{i}]"
                         for i, cam in enumerate(cams))
-        filt += ";[v0][v1][v2][v3]xstack=inputs=4:layout=0_0|w0_0|0_h0|w0_h0[out]"
+        tiles = "".join(f"[v{i}]" for i in range(len(cams)))
+        filt += (f";{tiles}xstack=inputs=4:layout=0_0|w0_0|0_h0|w0_h0[out]" if len(cams) == 4
+                 else f";{tiles}hstack=inputs={len(cams)}:shortest=1[out]")
         mosaic = f"{out_prefix}_mosaic.mp4"
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", filt, "-map", "[out]",
                         "-c:v", "libx264", "-pix_fmt", "yuv420p", mosaic], check=True)
