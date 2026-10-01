@@ -33,6 +33,14 @@ class SimClient:
     def move_to(self, targets):
         return self.call("move_to", targets=targets)
 
+    def step_axes(self, body_action, right_axes, gripper_action, duration_s=0.2):
+        """Apply fixed signed increments on the three right-hand axes plus one body and gripper action.
+
+        `right_axes` is a three-element list containing only -1, 0, or 1; it is not a pose or velocity interface.
+        """
+        return self.call("step_axes", body_action=body_action, right_axes=right_axes,
+                         gripper_action=gripper_action, duration_s=duration_s)
+
     def get_observation(self, include_third_person=False, marks=True, body_map=True):
         return self.call("get_observation", include_third_person=include_third_person, marks=marks, body_map=body_map)
 

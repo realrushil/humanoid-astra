@@ -9,7 +9,9 @@ Named dimensions (all optional per call, unnamed ones hold): left_x/y/z/roll/pit
 (0 closed .. 1 open), base_x, base_y, base_yaw (odometry frame fixed at reset), height (metres relative to the standing
 pelvis height, <= 0 crouches). Hand targets are the hand base (wrist_yaw link) pose in the PELVIS frame; orientation is
 relative to the hand orientation at reset. Arms are position-controlled through a damped-least-squares IK on the MuJoCo
-model, the legs/waist through AMO. No sticky grasp: the Dex3 fingers have to hold the object physically.
+model, the legs/waist through AMO. `step_axes(...)` exposes safe, short finite-direction control ticks for the Jev
+controller; unlike `move_to`, it never accepts a model-generated absolute pose target. No sticky grasp: the Dex3 fingers
+have to hold the object physically.
 """
 import argparse
 from collections import deque
@@ -32,6 +34,8 @@ def build_parser():
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--env-id", default="simple/G1WholebodyBendPickMP-v0")
     parser.add_argument("--task", default="g1_wholebody_bend_pick_mp")
+    parser.add_argument("--sim-mode", choices=["mujoco", "mujoco_isaac"], default="mujoco_isaac",
+                        help="mujoco omits Isaac rendering; use it for structured-state controllers such as Jev")
     parser.add_argument("--record-every", type=int, default=5, help="record a frame every N control steps (50 Hz)")
     parser.add_argument("--scene-uid", default=None, help="override the task's scene, e.g. hssd:scene7 (tasks that hard-code a scene ignore it)")
     parser.add_argument("--floor-box", default=None, help="replace the task target with a primitive box of this size 'dx,dy,dz' (m) "
@@ -125,7 +129,7 @@ class Adapter:
         self.sticky_grasp = sticky_grasp
         self.attached = {"left": None, "right": None}  # side -> (pos offset, rot offset) of the target in the hand-base frame
         self.mj = env.mujoco
-        self.isaac = env.isaac
+        self.isaac = getattr(env, "isaac", None)
         self.robot = env.task.robot
         self.task = env.task
         self.record_every = record_every
@@ -176,6 +180,9 @@ class Adapter:
         self.img_h, self.img_w = int(cfg.height), int(cfg.width)
         self.depth_renderer = mujoco.Renderer(self.m, height=self.img_h, width=self.img_w)
         self.depth_renderer.enable_depth_rendering()
+        # RGB recorders are deliberately separate from the depth renderer. They allow headless MuJoCo-only episodes
+        # to emit a verification video without starting Isaac Sim.
+        self.record_renderers = {}
         fovy = math.radians(self.m.cam_fovy[self.cam_id])
         fy = self.img_h / (2 * math.tan(fovy / 2))
         self.K = np.array([[fy, 0, self.img_w / 2], [0, fy, self.img_h / 2], [0, 0, 1]])
@@ -525,12 +532,24 @@ class Adapter:
             self.frame_i += 1
 
     def _render(self):
-        """Isaac Sim frames for the current MuJoCo state (rendered on demand, not every physics step)."""
-        if self._last_frames_step != self.step_i:
-            self.isaac.step(self.mj)
-            self._frames = self.isaac.render()
-            self._last_frames_step = self.step_i
-        return self._frames
+        """Render recorder frames from the current MuJoCo state, without requiring Isaac Sim."""
+        if self._last_frames_step == self.step_i:
+            return self._frames
+        frames = {}
+        for key in set(RECORD_CAMS.values()):
+            try:
+                renderer = self.record_renderers.get(key)
+                if renderer is None:
+                    renderer = mujoco.Renderer(self.m, height=self.img_h, width=self.img_w)
+                    self.record_renderers[key] = renderer
+                renderer.update_scene(self.d, camera=key)
+                frames[key] = renderer.render().copy()
+            except (mujoco.FatalError, ValueError):
+                # Some tasks omit optional cameras; the recorder simply skips them.
+                continue
+        self._frames = frames
+        self._last_frames_step = self.step_i
+        return frames
 
     def _run(self, max_steps, base_active, min_steps=0):
         reached = not base_active
@@ -698,6 +717,84 @@ class Adapter:
         return {"text": " | ".join(parts), "fallen": self.fallen, "box_on_floor": self.obj_on_floor, "timed_out": timed_out,
                 "clipped": clipped, "grasp_events": grasp, "sim_time": self.step_i * CTRL_DT}
 
+    def step_axes(self, body_action, right_axes, gripper_action, duration_s=0.2):
+        """Apply three finite signed hand increments plus body/gripper commands in one bounded tick.
+
+        This deliberately exposes directions rather than target coordinates: each hand axis is exactly -1, 0, or +1,
+        corresponding to a server-defined 4 cm increment. The server remains responsible for workspace/reach clipping.
+        """
+        body_action, gripper_action = str(body_action), str(gripper_action)
+        body_valid = {"crouch", "stand", "base_forward", "base_back", "base_left", "base_right",
+                      "turn_left", "turn_right", "hold"}
+        if body_action not in body_valid or gripper_action not in {"open", "hold", "close"}:
+            raise ValueError(f"invalid axis actions body={body_action!r}, gripper={gripper_action!r}")
+        if not isinstance(right_axes, (list, tuple)) or len(right_axes) != 3:
+            raise ValueError("right_axes must be a length-three list of -1, 0, or 1")
+        try:
+            right_axes = [int(v) for v in right_axes]
+        except (TypeError, ValueError) as exc:
+            raise ValueError("right_axes must contain integers") from exc
+        if any(v not in {-1, 0, 1} for v in right_axes):
+            raise ValueError("right_axes must contain only -1, 0, or 1")
+        duration_s = float(duration_s)
+        if not 0.04 <= duration_s <= 0.50:
+            raise ValueError("duration_s must be between 0.04 and 0.50 seconds")
+        if self.fallen:
+            return {"body_action": body_action, "right_axes": right_axes, "gripper_action": gripper_action,
+                    "fallen": True, "box_on_floor": self.obj_on_floor, "sim_time": self.step_i * CTRL_DT}
+
+        self._blocked = {"left": None, "right": None}
+        self._height_dirty = False
+        _, _, yaw = self.base_odom()
+        base_cmd, base_active = (0.0, 0.0, wrap(yaw + self.amo_yaw_off), 0.0), False
+
+        if any(right_axes):
+            p, rpy = self.hand_in_pelvis("right")
+            p = np.array(p) + 0.04 * np.array(right_axes, dtype=float)
+            for k, v in zip(["x", "y", "z"], p):
+                lo, hi = BOUNDS[f"right_{k}"]
+                self.cmd[f"right_{k}"] = float(min(hi, max(lo, v)))
+            shoulder = self.to_pelvis(self.d.xpos[self._body_id("right_shoulder_pitch_link")])
+            target = np.array([self.cmd[f"right_{k}"] for k in ["x", "y", "z"]])
+            reach = float(np.linalg.norm(target - shoulder))
+            if reach > self.arm_reach:
+                target = shoulder + (target - shoulder) * (self.arm_reach / reach)
+                for k, v in zip(["x", "y", "z"], target):
+                    self.cmd[f"right_{k}"] = float(v)
+            R = rpy_to_mat(self.cmd["right_roll"], self.cmd["right_pitch"], self.cmd["right_yaw"]) @ self._R0["right"]
+            self._hand_goal["right"] = (target, R)
+        if gripper_action == "open":
+            self.cmd["right_hand"] = 1.0
+        elif gripper_action == "close":
+            self.cmd["right_hand"] = 0.0
+
+        if body_action == "crouch":
+            self.cmd["height"] = BOUNDS["height"][0]
+            self._height_dirty = True
+        elif body_action == "stand":
+            self.cmd["height"] = 0.0
+            self._height_dirty = True
+        elif body_action in {"base_forward", "base_back", "base_left", "base_right"}:
+            vx, vy = {"base_forward": (0.22, 0.0), "base_back": (-0.18, 0.0),
+                      "base_left": (0.0, 0.18), "base_right": (0.0, -0.18)}[body_action]
+            base_cmd, base_active = (vx, vy, wrap(yaw + self.amo_yaw_off), 0.0), True
+        elif body_action in {"turn_left", "turn_right"}:
+            sign = 1.0 if body_action == "turn_left" else -1.0
+            base_cmd, base_active = (0.0, 0.0, wrap(yaw + sign * 0.35 + self.amo_yaw_off), 1.0), True
+
+        start_step, start_events = self.step_i, len(self.grasp_events)
+        for _ in range(max(2, round(duration_s / CTRL_DT))):
+            self._advance_hands()
+            self._step(base_cmd, base_active)
+            if self.fallen:
+                break
+        return {"body_action": body_action, "right_axes": right_axes, "gripper_action": gripper_action,
+                "duration_s": duration_s, "control_steps": self.step_i - start_step, "fallen": self.fallen,
+                "box_on_floor": self.obj_on_floor, "blocked": dict(self._blocked),
+                "grasp_events": self.grasp_events[start_events:], "stage": self.max_stage,
+                "task_success": bool(self.task.check_success(self.env._get_info(), mujoco_env=self.mj)),
+                "sim_time": self.step_i * CTRL_DT}
+
     # ---------------- camera geometry (MuJoCo camera of the same name/intrinsics as the Isaac one)
     def _cam_Rt(self):
         """Camera-to-world rotation in OpenCV axes (+z forward, +x right, +y down) and position."""
@@ -782,6 +879,9 @@ class Adapter:
     def get_state(self):
         tp = self.target_pos()
         pp, Rp = self.pelvis()
+        contacts = self.hand_contacts()
+        target_name = self._bname(self.target.id).split("/")[-1]
+        right_target_contact = any(key.split(":")[-1] == target_name for key in contacts["right"])
         Rt = np.zeros(9)
         mujoco.mju_quat2Mat(Rt, np.array(self.target.xquat))
         Rrel = Rp.T @ Rt.reshape(3, 3)
@@ -792,6 +892,7 @@ class Adapter:
               "pelvis": {"pos": pp.tolist(), "odom": list(self.base_odom()), "height": float(pp[2] - self.pelvis_z0)},
               "hands": {}, "commanded": dict(self.cmd), "attached": {s: self.attached[s] is not None for s in self.attached},
               "grasp_events": self.grasp_events, "sticky_grasp": self.sticky_grasp,
+              "right_target_contact": right_target_contact, "right_contact_forces": contacts["right"],
               "stage": self.stage, "max_stage": self.max_stage, "fallen": self.fallen, "box_on_floor": self.obj_on_floor,
               "task_success": bool(self.task.check_success(self.env._get_info(), mujoco_env=self.mj))}
         for s in ["left", "right"]:
@@ -939,7 +1040,7 @@ class Adapter:
             lines += ["The head image is annotated from the robot's own kinematics: a circle labelled L (yellow) or R (magenta) marks each",
                       "hand's grasp point (where the thumb and fingertips meet when the hand closes); dots are fingertips."]
         return {"text": "\n".join(lines), "bounds": {k: list(v) for k, v in BOUNDS.items()}, "sticky_grasp": self.sticky_grasp,
-                "cameras": ["head"], "image_size": [self.img_w, self.img_h], "instruction": self.instruction,
+                "cameras": ["head"] if self.isaac is not None else [], "image_size": [self.img_w, self.img_h], "instruction": self.instruction,
                 "extra_tools": extra_tools}
 
 
@@ -964,7 +1065,7 @@ def make_env_and_adapter(args):
         log(f"floor box {_size} m, {args.box_mass} kg replaces the task target")
     log(f"creating env {args.env_id} ...")
     t0 = time.time()
-    env = gym.make(args.env_id, task=args.task, robot_uid="g1_wholebody", sim_mode="mujoco_isaac", headless=True, render_hz=50,
+    env = gym.make(args.env_id, task=args.task, robot_uid="g1_wholebody", sim_mode=args.sim_mode, headless=True, render_hz=50,
                    max_episode_steps=10 ** 7, **({"scene_uid": args.scene_uid} if args.scene_uid else {}),
                    **({"target_object": args.target_object} if args.target_object else {})).unwrapped
     adapter = Adapter(env, record_every=args.record_every, sticky_grasp=args.sticky_grasp, legacy_close=args.legacy_close,
@@ -975,7 +1076,8 @@ def make_env_and_adapter(args):
 
 
 def build_methods(adapter):
-    return {"reset": adapter.reset, "move_to": adapter.move_to, "get_observation": adapter.get_observation,
+    return {"reset": adapter.reset, "move_to": adapter.move_to, "step_axes": adapter.step_axes,
+            "get_observation": adapter.get_observation,
             "get_state": adapter.get_state, "describe": adapter.describe, "measure": adapter.measure,
             "debug_hand_geometry": adapter.debug_hand_geometry, "debug_objects": adapter.debug_objects,
             "debug_contacts": adapter.debug_contacts, "debug_trace": adapter.debug_trace, "hand_geometry": adapter.hand_geometry}

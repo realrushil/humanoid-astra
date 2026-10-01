@@ -1,0 +1,9 @@
+# Never upload local credentials or generated experiment data to a Modal image build.
+.env
+.venv/
+.git
+.DS_Store
+__pycache__/
+runs/
+astra/runs/
+g1cap/

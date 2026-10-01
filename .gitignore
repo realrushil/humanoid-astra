@@ -9,6 +9,7 @@ setup_iam.sh
 .DS_Store
 *.pid
 __pycache__/
+.env
 
 # experiment outputs (frames, videos, logs, results) — repo is methodology only
 runs/

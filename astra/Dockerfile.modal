@@ -1,0 +1,14 @@
+# Modal image for the structured-state Jev experiment.
+#
+# SIMPLE publishes this image for its G1 motion-planning tasks. Reusing it is
+# faster and more reliable than rebuilding Isaac-adjacent and cuRobo native
+# dependencies inside Modal. The experiment still starts SIMPLE in `mujoco`
+# mode, so it does not initialize Isaac rendering.
+# Pin the published image instead of the mutable `latest` tag. This fixes the
+# bytes we execute, but is not a substitute for trusting or auditing its source.
+FROM ghcr.io/physical-superintelligence-lab/simple@sha256:76d8cf453547e57ecfcba6ef26bb4bede293f8cb64fc4c923aec0d89655e7c95
+
+# Controller code is mounted at function startup rather than copied here.
+# That keeps policy edits out of this large simulator-image build.
+ENV MUJOCO_GL=egl \
+    PYTHONUNBUFFERED=1
