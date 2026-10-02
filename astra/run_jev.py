@@ -4,6 +4,7 @@ Each tick uses two Jev requests: select a semantic intent, then select concurren
 The server owns all action magnitudes and workspace limits; Jev never emits an absolute pose or calls ``move_to``.
 """
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -38,26 +39,28 @@ GRIPPER_CRITERIA = {
     "close": "Close the right gripper to attempt or maintain a pinch grasp.",
 }
 INTENT_CRITERIA = {
-    "approach": "Bring the OPEN right grasp point into a stable pre-grasp pose. Choose while grasp distance is above 6 cm, while the box is substantially below the grasp point, or before the body posture can reach the box.",
-    "grasp": "Secure a pinch grasp. Choose when grasp distance is about 6 cm or less and the body/hand are in a reachable pre-grasp pose. Stay in grasp while fingers are still closing (openness above 0.1) so they can settle on the box.",
-    "lift": "Raise the box while maintaining the grasp. Choose only after fingers are nearly closed (openness at most 0.1) and the grasp point/contact remains near the box; then begin the lift.",
+    "approach": "Bring the OPEN right grasp point into a stable pre-grasp pose. Choose while geometric grasp distance is above 6 cm, while the box is substantially below the grasp point, or before the body posture can reach the box.",
+    "grasp": "Secure a physical thumb-versus-fingers pinch. Choose when geometric grasp distance is about 6 cm or less and the body/hand are in a reachable pre-grasp pose. Stay in grasp while fingers are still closing (openness above 0.1) or right_pinch.ready is false; after the fingers finish closing, a missing thumb contact requires a small signed-error correction, not indefinite holding.",
+    "lift": "Raise the box while maintaining a verified pinch. Choose only after fingers are nearly closed (openness at most 0.1), right_pinch.ready is true, and the box remains near the grasp point; geometric overlap or broad hand contact alone is not sufficient.",
     "carry_back": "Carry the already lifted box backward. Choose only after the box is lifted at least 12 cm; keep it held while backward progress is below the requested distance.",
-    "recover": "Correct a clearly worsening or blocked situation while preserving a safe robot posture.",
+    "recover": "Correct a clearly worsening, blocked, or dropped-object situation while preserving a safe robot posture. Use the observed error and action effects; do not repeat an approach direction that made distance worse.",
 }
 INTENT_INSTRUCTIONS = (
     "Choose exactly one current task intent for the next whole-body control tick. This is a semantic purpose, not an "
     "action gate: a separate call will retain every body, hand-axis, and gripper action. Use measured geometry, "
     "contacts/stage, and recent action effects. Do not invent an intent.")
 INTENT_ACTION_CONTEXT = {
-    "approach": "The hand is not pinch-ready yet: keep the gripper open, reduce signed position error, and consider crouching when the box is below reach.",
-    "grasp": "The hand should already be close and reachable: preserve position, keep commanding close until measured openness is at most 0.1, and avoid moving the box away before contact.",
-    "lift": "A grasp should already be established: keep fingers closed. If crouched, standing is a valid way to raise the held box; otherwise move it upward without dropping it.",
+    "approach": "The hand is not pinch-ready yet: keep the gripper open, reduce signed position error, and consider crouching when the box is below reach. Geometric distance of zero is only surface overlap, not a grasp.",
+    "grasp": "The hand should already be close and reachable: keep commanding close until measured openness is at most 0.1 AND right_pinch.ready is true. Broad hand contact is not a pinch. Once the hand is closed, if right_pinch.thumb_force_n is near zero while finger_force_n is nonzero, do not hold indefinitely: use a small x/y/z correction consistent with signed grasp error while maintaining close, then inspect the new pinch forces.",
+    "lift": "A two-sided physical pinch should already be established: keep fingers closed. Do not use lift to test whether a grasp exists. If crouched, standing is a valid way to raise the held box; otherwise move it upward without dropping it.",
     "carry_back": "The box is already lifted: keep fingers closed and the hand stable, stand if necessary, and use base_back to make measured backward progress without dropping it.",
-    "recover": "Use measured action effects to undo worsening motion while keeping the hand and body safe.",
+    "recover": "Use measured action effects to undo worsening motion while keeping the hand and body safe. If a recent approach increased distance, do not repeat its signed axes: recompute every axis from the current signed error or reposition the body/base.",
 }
 DIRECTION_CONTEXT = (
     "Signed grasp error is box position minus right grasp point, in the pelvis frame. Positive error needs plus motion "
     "on that axis; negative error needs minus motion. Negative z means the box is below the grasp point. "
+    "Before choosing an axis, explicitly check its sign against the current error: choosing the opposite sign moves away "
+    "from the box. If recent_action_effects shows an approach increased distance, do not repeat that same signed direction. "
     "error_change_since_previous_action_m is descriptive feedback, not a constraint.")
 
 
@@ -71,6 +74,8 @@ def axis_field_instructions(field, intent):
     }
     return ("Choose this field for one simultaneous 0.2-second whole-body tick. Every option remains available; there are "
             "no action masks or server-enforced phases. " + DIRECTION_CONTEXT +
+            " For a closed but unready pinch, a zero-force thumb plus nonzero finger force means correct the grasp geometry; "
+            "holding all axes is justified only while contact forces are improving. "
             f" The current Jev-selected task intent is {intent!r}: {INTENT_ACTION_CONTEXT[intent]} " + specific[field])
 
 
@@ -146,14 +151,20 @@ def compact_state(st, previous, history, *, task, task_goal):
         "right_wrist_rpy_rad": [round(v, 3) for v in right["wrist_pelvis_rpy"]], "right_grasp_error_m": error,
         "error_change_since_previous_action_m": error_delta, "recent_history": recent, "recent_action_effects": effects,
         "right_grasp_distance_m": round(right["box_surface_dist"], 3), "right_openness": round(right["openness_measured"], 3),
-        "right_target_contact": bool(st["right_target_contact"]),
+        "right_any_target_contact": bool(st["right_target_contact"]),
         "right_contact_forces": {name: round(force, 2) for name, force in st["right_contact_forces"].items()},
+        "right_pinch": {key: (bool(value) if key == "ready" else round(value, 2))
+                        for key, value in st["right_pinch"].items()},
         "body_height_m": round(st["pelvis"]["height"], 3), "base_odom": [round(v, 3) for v in st["pelvis"]["odom"]],
         "task_stage": st["max_stage"], "previous": previous,
     }
 
 
-def run_episode(client, sim, seed, max_actions, duration_s, min_confidence, out_dir, *, carry_back=False, record_dir=None):
+def run_episode(client, sim, seed, max_actions, duration_s, min_confidence, out_dir, *, carry_back=False, record_dir=None,
+                streaming=False):
+    if streaming:
+        return run_streaming_episode(client, sim, seed, max_actions, duration_s, min_confidence, out_dir,
+                                     carry_back=carry_back, record_dir=record_dir)
     sim.reset(seed, record_dir=str(record_dir) if record_dir else None)
     initial_base_x = float(sim.get_state()["pelvis"]["odom"][0])
     task = CARRY_BACK_TASK if carry_back else TASK
@@ -229,6 +240,128 @@ def run_episode(client, sim, seed, max_actions, duration_s, min_confidence, out_
     return result
 
 
+def run_streaming_episode(client, sim, seed, max_actions, duration_s, min_confidence, out_dir, *, carry_back=False,
+                          record_dir=None):
+    """Run physics at a wall-clock cadence while one Jev request is in flight.
+
+    A direction command is applied only on the tick where its response arrives.  Every other tick is a neutral hold,
+    which leaves the existing IK and gripper targets active without accidentally accumulating another 4 cm increment.
+    """
+    sim.reset(seed, record_dir=str(record_dir) if record_dir else None)
+    initial_base_x = float(sim.get_state()["pelvis"]["odom"][0])
+    task = CARRY_BACK_TASK if carry_back else TASK
+
+    def backward_progress(st):
+        return max(0.0, initial_base_x - float(st["pelvis"]["odom"][0]))
+
+    def success(st):
+        picked = bool(st["task_success"])
+        return picked and (not carry_back or (backward_progress(st) >= 0.15 and bool(st["right_target_contact"])))
+
+    def goal(st):
+        return ({"box_lift_target_m": 0.12, "backward_target_m": 0.15,
+                 "backward_progress_m": round(backward_progress(st), 3), "box_lifted": bool(st["task_success"]),
+                 "requires_right_target_contact": True} if carry_back else {})
+
+    def start_request(st):
+        state = compact_state(st, previous, history, task=task, task_goal=goal(st))
+        state["control_timing"] = {
+            "simulation_continues_while_thinking": True,
+            "intervening_control": "neutral hold: existing hand and gripper targets remain active",
+            "expected_response_delay_sim_s": "about 0.4 to 0.6 after warm-up",
+            "implication": "This state can be stale when applied; do not make a lift or other irreversible transition without current physical pinch evidence. A small regrasp correction is safer than repeatedly holding a failed pinch.",
+        }
+        return executor.submit(client.decide_intent_axis, state), state, st["sim_time"]
+
+    transcript, history, decisions = [], [], []
+    previous, end_reason = {"action": "reset", "outcome": "fresh episode"}, "action budget exhausted"
+    neutral = {"intent": "awaiting_jev", "body": "hold", "right_axes": ["hold", "hold", "hold"], "gripper": "hold"}
+    next_deadline = time.monotonic()
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="jev") as executor:
+        future, request_state, request_sim_time = start_request(sim.get_state())
+        turn = 0
+        while len(decisions) < max_actions:
+            turn += 1
+            st = sim.get_state()
+            if st["fallen"] or st["box_on_floor"]:
+                end_reason = "robot fell" if st["fallen"] else "box reached floor"
+                break
+            if success(st):
+                end_reason = "task success detected"
+                break
+
+            choice, decision_id, response = neutral, None, None
+            if future.done():
+                intent_answer, axes_answers, usage, latency = future.result()
+                intent = intent_answer["choice"]
+                body, gripper = axes_answers["body_action"]["choice"], axes_answers["gripper"]["choice"]
+                labels = [axes_answers[name]["choice"] for name in ("right_x", "right_y", "right_z")]
+                confidence = min(float(intent_answer.get("confidence", 0.0)),
+                                 *(float(answer.get("confidence", 0.0)) for answer in axes_answers.values()))
+                choice = {"intent": intent, "body": body, "right_axes": labels, "gripper": gripper}
+                decision_id = len(decisions) + 1
+                response = {"decision": decision_id, "state": request_state, "choice": choice,
+                            "confidence": confidence, "usage": usage, "latency_s": round(latency, 3),
+                            "intent_answer": intent_answer, "axis_answers": axes_answers,
+                            "accepted_at_sim_time": st["sim_time"],
+                            "staleness_sim_s": round(st["sim_time"] - request_sim_time, 3)}
+                if confidence < min_confidence:
+                    response["outcome"] = "abstained: below confidence threshold"
+                    decisions.append(response)
+                    end_reason = f"low confidence {confidence:.3f} below {min_confidence:.3f}"
+                    break
+
+            axes = [{"minus": -1, "hold": 0, "plus": 1}[label] for label in choice["right_axes"]]
+            outcome = sim.step_axes(choice["body"], axes, choice["gripper"], duration_s=duration_s)
+            post = sim.get_state()
+            post_grasp, post_box = post["hands"]["right"]["grasp_point_pelvis"], post["box"]["pelvis"]
+            command = f"intent={choice['intent']}; body={choice['body']}; x={choice['right_axes'][0]}; y={choice['right_axes'][1]}; z={choice['right_axes'][2]}; gripper={choice['gripper']}"
+            history.append({"action": command,
+                            "error_before_m": [round(st["box"]["pelvis"][i] - st["hands"]["right"]["grasp_point_pelvis"][i], 3) for i in range(3)],
+                            "error_after_m": [round(post_box[i] - post_grasp[i], 3) for i in range(3)],
+                            "distance_before_m": round(st["hands"]["right"]["box_surface_dist"], 3),
+                            "distance_after_m": round(post["hands"]["right"]["box_surface_dist"], 3),
+                            "lift_after_m": round(post["box"]["lift"], 3), "stage_after": post["max_stage"],
+                            "backward_progress_after_m": round(backward_progress(post), 3)})
+            transcript.append({"turn": turn, "state": compact_state(st, previous, history[:-1], task=task, task_goal=goal(st)),
+                               "choice": choice, "decision": decision_id, "held_while_model_pending": decision_id is None,
+                               "outcome": outcome})
+            previous = {"action": choice, "grasp_error_m": history[-1]["error_before_m"],
+                        "grasp_distance_m": history[-1]["distance_before_m"],
+                        "outcome": {key: outcome.get(key) for key in ("blocked", "grasp_events", "stage", "fallen", "box_on_floor")}}
+            if response is not None:
+                response["applied_on_turn"] = turn
+                response["outcome"] = outcome
+                decisions.append(response)
+                if len(decisions) < max_actions and not (post["fallen"] or post["box_on_floor"] or success(post)):
+                    future, request_state, request_sim_time = start_request(post)
+
+            # Real-time pacing is deliberate: the simulator continues at its 5 Hz control cadence while Jev thinks.
+            next_deadline += duration_s
+            time.sleep(max(0.0, next_deadline - time.monotonic()))
+
+    final = sim.get_state()
+    result = {"seed": seed, "model": client.model, "controller_mode": "intent_axis_streaming",
+              "task_variant": "carry_back" if carry_back else "pickup", "success": success(final),
+              "actions": len(decisions), "control_ticks": len(transcript), "model_decisions": len(decisions),
+              "sim_time": final["sim_time"],
+              "stage": final["max_stage"], "fallen": final["fallen"], "box_on_floor": final["box_on_floor"],
+              "box_lift_m": final["box"]["lift"], "end_reason": end_reason}
+    if carry_back:
+        result["backward_progress_m"] = backward_progress(final)
+    if record_dir:
+        video = out_dir / f"seed_{seed}_third_person.mp4"
+        try:
+            make_video(Path(record_dir) / "third_person", video, fps=10)
+            result["video"] = str(video)
+        except Exception as exc:
+            result["video_error"] = f"{type(exc).__name__}: {exc}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / f"seed_{seed}.json").write_text(json.dumps({"result": result, "transcript": transcript,
+                                                              "model_decisions": decisions}, indent=2))
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-smoke", action="store_true", help="Call the intent selector once without a simulator.")
@@ -238,6 +371,7 @@ def main():
     parser.add_argument("--min-confidence", type=float, default=0.0)
     parser.add_argument("--carry-back", action="store_true")
     parser.add_argument("--record", action="store_true")
+    parser.add_argument("--streaming", action="store_true", help="Advance simulation at real-time cadence while Jev requests run in the background.")
     parser.add_argument("--sim-url", default="http://127.0.0.1:8765")
     parser.add_argument("--out", default="runs/jev")
     parser.add_argument("--model", default=MODEL)
@@ -255,7 +389,8 @@ def main():
     out_dir = Path(args.out) / run_id
     results = [run_episode(client, sim, seed, args.max_actions, args.duration_s, args.min_confidence, out_dir,
                            carry_back=args.carry_back,
-                           record_dir=(out_dir / f"seed_{seed}_frames") if args.record else None)
+                           record_dir=(out_dir / f"seed_{seed}_frames") if args.record else None,
+                           streaming=args.streaming)
                for seed in args.seed]
     (out_dir / "summary.json").write_text(json.dumps(results, indent=2))
     print(f"report: {out_dir / 'summary.json'}")

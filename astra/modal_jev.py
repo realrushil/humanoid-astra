@@ -50,7 +50,7 @@ def decide_with_jev(state: dict, questions: dict):
 
 @app.function(image=image, gpu="L4", timeout=60 * 60, volumes={"/runs": runs})
 def run_experiment(seeds: list[int], max_actions: int = 50, duration_s: float = 0.2, min_confidence: float = 0.0,
-                   carry_back: bool = False, record_video: bool = False):
+                   carry_back: bool = False, record_video: bool = False, streaming: bool = False):
     """Run headless MuJoCo with the bounded intent-first controller and persist every transcript."""
     import os
     import subprocess
@@ -65,6 +65,14 @@ def run_experiment(seeds: list[int], max_actions: int = 50, duration_s: float = 
 
     class GatewayJevClient:
         model = MODEL
+
+        @staticmethod
+        def warmup():
+            """Pay the gateway/container cold start before the episode clock begins."""
+            decide_with_jev.remote({"task": "Connection warm-up only."}, {
+                "choice": {"type": "choice", "instructions": "Acknowledge the connection.",
+                           "criteria": {"ready": "The connection is ready."}},
+            })
 
         @staticmethod
         def decide_intent_axis(state):
@@ -97,6 +105,7 @@ def run_experiment(seeds: list[int], max_actions: int = 50, duration_s: float = 
                               cwd=WORKSPACE, env={**os.environ, "MUJOCO_GL": "egl"}, stdout=server_log,
                               stderr=subprocess.STDOUT)
     try:
+        GatewayJevClient.warmup()
         deadline = time.monotonic() + 15 * 60
         while True:
             if server.poll() is not None:
@@ -112,7 +121,8 @@ def run_experiment(seeds: list[int], max_actions: int = 50, duration_s: float = 
         (out / "health.json").write_text(json.dumps(sim.health(), indent=2))
         results = [run_episode(GatewayJevClient(), sim, seed, max_actions, duration_s, min_confidence, out,
                                carry_back=carry_back,
-                               record_dir=(out / f"seed_{seed}_frames") if record_video else None)
+                               record_dir=(out / f"seed_{seed}_frames") if record_video else None,
+                               streaming=streaming)
                    for seed in seeds]
         (out / "summary.json").write_text(json.dumps(results, indent=2))
         runs.commit()
@@ -130,8 +140,9 @@ def run_experiment(seeds: list[int], max_actions: int = 50, duration_s: float = 
 
 @app.local_entrypoint()
 def main(seeds: str = "0", max_actions: int = 50, duration_s: float = 0.2, min_confidence: float = 0.0,
-         carry_back: bool = False, record_video: bool = False):
+         carry_back: bool = False, record_video: bool = False, streaming: bool = False):
     parsed = [int(seed) for seed in seeds.split(",") if seed.strip()]
     if not parsed:
         raise ValueError("--seeds needs one or more comma-separated integer seeds")
-    print(json.dumps(run_experiment.remote(parsed, max_actions, duration_s, min_confidence, carry_back, record_video), indent=2))
+    print(json.dumps(run_experiment.remote(parsed, max_actions, duration_s, min_confidence, carry_back, record_video,
+                                            streaming), indent=2))

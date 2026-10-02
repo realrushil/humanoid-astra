@@ -248,6 +248,39 @@ class Adapter:
                 out[s][key] = out[s].get(key, 0.0) + float(abs(f[0]))
         return out
 
+    def hand_target_pinch(self, side):
+        """Return target contact split by thumb versus opposing fingers for one hand.
+
+        A broad hand/forearm collision is useful for collision avoidance but is not evidence that the object is pinched.
+        This deliberately reports only aggregate force and booleans, not robot-internal link names, to the controller.
+        """
+        target_root = self.m.body_rootid[self.target.id]
+        groups = {"thumb_force_n": 0.0, "finger_force_n": 0.0, "other_force_n": 0.0}
+        f = np.zeros(6)
+        for i in range(self.d.ncon):
+            c = self.d.contact[i]
+            b1, b2 = self.m.geom_bodyid[c.geom1], self.m.geom_bodyid[c.geom2]
+            if self.m.body_rootid[b1] == target_root:
+                robot_body = b2
+            elif self.m.body_rootid[b2] == target_root:
+                robot_body = b1
+            else:
+                continue
+            name = self._bname(robot_body).split("/")[-1]
+            if f"{side}_hand" not in name and f"{side}_wrist" not in name:
+                continue
+            mujoco.mj_contactForce(self.m, self.d, i, f)
+            force = float(abs(f[0]))
+            if f"{side}_hand_thumb" in name:
+                groups["thumb_force_n"] += force
+            elif f"{side}_hand_index" in name or f"{side}_hand_middle" in name:
+                groups["finger_force_n"] += force
+            else:
+                groups["other_force_n"] += force
+        # A real pinch needs opposing sides of the hand, not merely a palm, wrist, or forearm collision.
+        groups["ready"] = groups["thumb_force_n"] > 0.5 and groups["finger_force_n"] > 0.5
+        return groups
+
     def _bname(self, b):
         return mujoco.mj_id2name(self.m, mujoco.mjtObj.mjOBJ_BODY, b) or str(b)
 
@@ -880,6 +913,7 @@ class Adapter:
         tp = self.target_pos()
         pp, Rp = self.pelvis()
         contacts = self.hand_contacts()
+        right_pinch = self.hand_target_pinch("right")
         target_name = self._bname(self.target.id).split("/")[-1]
         right_target_contact = any(key.split(":")[-1] == target_name for key in contacts["right"])
         Rt = np.zeros(9)
@@ -893,6 +927,7 @@ class Adapter:
               "hands": {}, "commanded": dict(self.cmd), "attached": {s: self.attached[s] is not None for s in self.attached},
               "grasp_events": self.grasp_events, "sticky_grasp": self.sticky_grasp,
               "right_target_contact": right_target_contact, "right_contact_forces": contacts["right"],
+              "right_pinch": right_pinch,
               "stage": self.stage, "max_stage": self.max_stage, "fallen": self.fallen, "box_on_floor": self.obj_on_floor,
               "task_success": bool(self.task.check_success(self.env._get_info(), mujoco_env=self.mj))}
         for s in ["left", "right"]:
