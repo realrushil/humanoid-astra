@@ -117,7 +117,7 @@ class JevClient:
         })
         return answers["choice"], usage, latency
 
-    def decide_intent_axis(self, state):
+    def decide_intent_axis(self, state, refresh_action_state=None):
         intent_answer, intent_usage, intent_latency = self.decide_choice(state, INTENT_CRITERIA, INTENT_INSTRUCTIONS)
         intent = intent_answer["choice"]
         if intent not in INTENT_CRITERIA:
@@ -160,6 +160,17 @@ def compact_state(st, previous, history, *, task, task_goal):
     }
 
 
+def prepare_decision_state(client, sim, state, out_dir, seed, decision, sim_time):
+    """Capture optional visual evidence on the simulation thread before model inference starts."""
+    prepare = getattr(client, "prepare_state", None)
+    return prepare(sim, state, out_dir, seed, decision, sim_time) if prepare else state
+
+
+def logged_decision_state(state):
+    # Visual clients archive JPEGs separately; never duplicate base64 in every history entry.
+    return {key: value for key, value in state.items() if key != "_image_data_urls"}
+
+
 def run_episode(client, sim, seed, max_actions, duration_s, min_confidence, out_dir, *, carry_back=False, record_dir=None,
                 streaming=False):
     if streaming:
@@ -190,7 +201,12 @@ def run_episode(client, sim, seed, max_actions, duration_s, min_confidence, out_
                  "backward_progress_m": round(backward_progress(st), 3), "box_lifted": bool(st["task_success"]),
                  "requires_right_target_contact": True} if carry_back else {})
         state = compact_state(st, previous, history, task=task, task_goal=goal)
-        intent_answer, axes_answers, usage, latency = client.decide_intent_axis(state)
+        state = prepare_decision_state(client, sim, state, out_dir, seed, turn, st["sim_time"])
+        refresh = getattr(client, "refresh_action_state", None)
+        refresh_callback = (lambda action_state: refresh(sim, action_state, out_dir, seed, turn)
+                            ) if refresh else None
+        intent_answer, axes_answers, usage, latency = client.decide_intent_axis(
+            state, refresh_action_state=refresh_callback)
         intent = intent_answer["choice"]
         body, gripper = axes_answers["body_action"]["choice"], axes_answers["gripper"]["choice"]
         labels = [axes_answers[name]["choice"] for name in ("right_x", "right_y", "right_z")]
@@ -198,7 +214,7 @@ def run_episode(client, sim, seed, max_actions, duration_s, min_confidence, out_
         confidence = min(float(intent_answer.get("confidence", 0.0)),
                          *(float(answer.get("confidence", 0.0)) for answer in axes_answers.values()))
         choice = {"intent": intent, "body": body, "right_axes": labels, "gripper": gripper}
-        record = {"turn": turn, "state": state, "choice": choice, "confidence": confidence, "usage": usage,
+        record = {"turn": turn, "state": logged_decision_state(state), "choice": choice, "confidence": confidence, "usage": usage,
                   "latency_s": round(latency, 3), "intent_answer": intent_answer, "axis_answers": axes_answers}
         if confidence < min_confidence:
             record["outcome"] = "abstained: below confidence threshold"
@@ -221,7 +237,7 @@ def run_episode(client, sim, seed, max_actions, duration_s, min_confidence, out_
                     "grasp_distance_m": state["right_grasp_distance_m"],
                     "outcome": {key: outcome.get(key) for key in ("blocked", "grasp_events", "stage", "fallen", "box_on_floor")}}
     final = sim.get_state()
-    result = {"seed": seed, "model": client.model, "controller_mode": "intent_axis",
+    result = {"seed": seed, "model": client.model, "provider": getattr(client, "provider", "typesafe"), "controller_mode": "intent_axis",
               "task_variant": "carry_back" if carry_back else "pickup", "success": success(final),
               "actions": len(transcript), "sim_time": final["sim_time"], "stage": final["max_stage"],
               "fallen": final["fallen"], "box_on_floor": final["box_on_floor"], "box_lift_m": final["box"]["lift"],
@@ -268,14 +284,19 @@ def run_streaming_episode(client, sim, seed, max_actions, duration_s, min_confid
         state["control_timing"] = {
             "simulation_continues_while_thinking": True,
             "intervening_control": "neutral hold: existing hand and gripper targets remain active",
-            "expected_response_delay_sim_s": "about 0.4 to 0.6 after warm-up",
+            "expected_response_delay_sim_s": getattr(client, "expected_delay", "about 0.4 to 0.6 after warm-up"),
             "implication": "This state can be stale when applied; do not make a lift or other irreversible transition without current physical pinch evidence. A small regrasp correction is safer than repeatedly holding a failed pinch.",
         }
-        return executor.submit(client.decide_intent_axis, state), state, st["sim_time"]
+        state = prepare_decision_state(client, sim, state, out_dir, seed, len(decisions) + 1, st["sim_time"])
+        refresh = getattr(client, "refresh_action_state", None)
+        refresh_callback = (lambda action_state: refresh(sim, action_state, out_dir, seed, len(decisions) + 1)
+                            ) if refresh else None
+        return executor.submit(client.decide_intent_axis, state,
+                               refresh_action_state=refresh_callback), state, st["sim_time"]
 
     transcript, history, decisions = [], [], []
     previous, end_reason = {"action": "reset", "outcome": "fresh episode"}, "action budget exhausted"
-    neutral = {"intent": "awaiting_jev", "body": "hold", "right_axes": ["hold", "hold", "hold"], "gripper": "hold"}
+    neutral = {"intent": "awaiting_model", "body": "hold", "right_axes": ["hold", "hold", "hold"], "gripper": "hold"}
     next_deadline = time.monotonic()
     with ThreadPoolExecutor(max_workers=1, thread_name_prefix="jev") as executor:
         future, request_state, request_sim_time = start_request(sim.get_state())
@@ -292,7 +313,12 @@ def run_streaming_episode(client, sim, seed, max_actions, duration_s, min_confid
 
             choice, decision_id, response = neutral, None, None
             if future.done():
-                intent_answer, axes_answers, usage, latency = future.result()
+                try:
+                    intent_answer, axes_answers, usage, latency = future.result()
+                except RuntimeError as exc:
+                    # Preserve the frames and completed decisions when an API request fails or is refused.
+                    end_reason = f"model request failed: {exc}"
+                    break
                 intent = intent_answer["choice"]
                 body, gripper = axes_answers["body_action"]["choice"], axes_answers["gripper"]["choice"]
                 labels = [axes_answers[name]["choice"] for name in ("right_x", "right_y", "right_z")]
@@ -300,7 +326,7 @@ def run_streaming_episode(client, sim, seed, max_actions, duration_s, min_confid
                                  *(float(answer.get("confidence", 0.0)) for answer in axes_answers.values()))
                 choice = {"intent": intent, "body": body, "right_axes": labels, "gripper": gripper}
                 decision_id = len(decisions) + 1
-                response = {"decision": decision_id, "state": request_state, "choice": choice,
+                response = {"decision": decision_id, "state": logged_decision_state(request_state), "choice": choice,
                             "confidence": confidence, "usage": usage, "latency_s": round(latency, 3),
                             "intent_answer": intent_answer, "axis_answers": axes_answers,
                             "accepted_at_sim_time": st["sim_time"],
@@ -341,7 +367,7 @@ def run_streaming_episode(client, sim, seed, max_actions, duration_s, min_confid
             time.sleep(max(0.0, next_deadline - time.monotonic()))
 
     final = sim.get_state()
-    result = {"seed": seed, "model": client.model, "controller_mode": "intent_axis_streaming",
+    result = {"seed": seed, "model": client.model, "provider": getattr(client, "provider", "typesafe"), "controller_mode": "intent_axis_streaming",
               "task_variant": "carry_back" if carry_back else "pickup", "success": success(final),
               "actions": len(decisions), "control_ticks": len(transcript), "model_decisions": len(decisions),
               "sim_time": final["sim_time"],

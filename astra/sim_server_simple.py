@@ -890,10 +890,14 @@ class Adapter:
         fr = self._render()
         images = {}
         for name, key in [("head", LLM_CAM)] + ([("third_person", THIRD_CAM)] if include_third_person else []):
+            if key not in fr:
+                raise RuntimeError(f"Requested camera {name} ({key}) could not be rendered")
             img = cv2.cvtColor(fr[key], cv2.COLOR_RGB2BGR)
             if marks and name == "head":
                 img = self._annotate(img)
             ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            if not ok:
+                raise RuntimeError(f"Could not encode camera {name}")
             images[name] = base64.b64encode(buf.tobytes()).decode()
         bx, by, byaw = self.base_odom()
         text = {}
@@ -908,6 +912,12 @@ class Adapter:
         return {"images": images, "image_size": [self.img_w, self.img_h],
                 "state_text": " ".join(f"{k}={v:.2f}" for k, v in text.items()) + (f" | {touching}" if touching else ""),
                 "state": text, "sim_time": self.step_i * CTRL_DT, "instruction": self.instruction}
+
+    def get_state_and_observation(self, include_third_person=False, marks=True, body_map=False):
+        """Return state and rendered cameras without another control step between them."""
+        return {"state": self.get_state(),
+                "observation": self.get_observation(include_third_person=include_third_person,
+                                                     marks=marks, body_map=body_map)}
 
     def get_state(self):
         tp = self.target_pos()
@@ -1113,6 +1123,7 @@ def make_env_and_adapter(args):
 def build_methods(adapter):
     return {"reset": adapter.reset, "move_to": adapter.move_to, "step_axes": adapter.step_axes,
             "get_observation": adapter.get_observation,
+            "get_state_and_observation": adapter.get_state_and_observation,
             "get_state": adapter.get_state, "describe": adapter.describe, "measure": adapter.measure,
             "debug_hand_geometry": adapter.debug_hand_geometry, "debug_objects": adapter.debug_objects,
             "debug_contacts": adapter.debug_contacts, "debug_trace": adapter.debug_trace, "hand_geometry": adapter.hand_geometry}

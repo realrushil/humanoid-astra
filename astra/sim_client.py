@@ -44,6 +44,11 @@ class SimClient:
     def get_observation(self, include_third_person=False, marks=True, body_map=True):
         return self.call("get_observation", include_third_person=include_third_person, marks=marks, body_map=body_map)
 
+    def get_state_and_observation(self, include_third_person=False, marks=True, body_map=False):
+        """Read full state and freshly rendered cameras atomically in the simulator server."""
+        return self.call("get_state_and_observation", include_third_person=include_third_person,
+                         marks=marks, body_map=body_map)
+
     def get_state(self):
         return self.call("get_state")
 
